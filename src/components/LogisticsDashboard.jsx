@@ -59,6 +59,7 @@ const modernStyles = `
     position: relative;
     overflow: hidden;
     animation: slideInUp 0.4s ease-out;
+    cursor: pointer;
   }
 
   .stat-card::before {
@@ -79,6 +80,13 @@ const modernStyles = `
   .stat-card:hover {
     transform: translateY(-4px);
     box-shadow: 0 12px 32px rgba(30, 136, 229, 0.15);
+  }
+
+  .stat-card.active {
+    transform: translateY(-6px) scale(1.02);
+    box-shadow: 0 16px 40px rgba(30, 136, 229, 0.3);
+    border: 2px solid var(--primary);
+    background: linear-gradient(135deg, rgba(30, 136, 229, 0.05) 0%, rgba(67, 160, 71, 0.05) 100%);
   }
 
   .stat-icon {
@@ -735,6 +743,7 @@ const modernStyles = `
 
 export default function LogisticsDashboard({ lojasMap, stockRows }) {
   const [selectedLoja, setSelectedLoja] = useState(null);
+  const [activeKPI, setActiveKPI] = useState(null);
 
   if (!lojasMap || lojasMap.size === 0) {
     return (
@@ -822,6 +831,34 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
     return { totalEnvios, totalPecas, lojasPendentes, taxaUrgencia };
   }, [agenda]);
 
+  // Filtrar agenda baseado no KPI ativo
+  const filteredAgenda = useMemo(() => {
+    if (!activeKPI) return agenda;
+
+    const filtered = {};
+    Object.keys(agenda).forEach(dia => {
+      if (activeKPI === 'envios') {
+        // Mostrar todos os envios
+        filtered[dia] = agenda[dia];
+      } else if (activeKPI === 'pecas') {
+        // Mostrar lojas com peças > 0
+        filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 0);
+      } else if (activeKPI === 'pendentes') {
+        // Mostrar apenas lojas urgentes
+        filtered[dia] = agenda[dia].filter(loja => loja.urgent);
+      } else if (activeKPI === 'urgencia') {
+        // Mostrar lojas com muitas peças (> 100)
+        filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 100);
+      }
+    });
+
+    return filtered;
+  }, [agenda, activeKPI]);
+
+  const handleKPIClick = (kpiType) => {
+    setActiveKPI(activeKPI === kpiType ? null : kpiType);
+  };
+
   const getOrderId = (loja) => {
     const d = new Date();
     const dateStr = `${d.getDate()}${d.getMonth() + 1}`;
@@ -837,7 +874,11 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
       <div className="logistics-container">
         {/* KPI CARDS */}
         <div className="kpi-stats-grid">
-          <div className="stat-card" style={{ animationDelay: '0s' }}>
+          <div
+            className={`stat-card ${activeKPI === 'envios' ? 'active' : ''}`}
+            style={{ animationDelay: '0s', cursor: 'pointer' }}
+            onClick={() => handleKPIClick('envios')}
+          >
             <div className="stat-icon blue">🚚</div>
             <div className="stat-content">
               <div className="stat-label">Total Envios</div>
@@ -845,7 +886,11 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
             </div>
           </div>
 
-          <div className="stat-card" style={{ animationDelay: '0.1s' }}>
+          <div
+            className={`stat-card ${activeKPI === 'pecas' ? 'active' : ''}`}
+            style={{ animationDelay: '0.1s', cursor: 'pointer' }}
+            onClick={() => handleKPIClick('pecas')}
+          >
             <div className="stat-icon orange">📦</div>
             <div className="stat-content">
               <div className="stat-label">Peças Total</div>
@@ -853,7 +898,11 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
             </div>
           </div>
 
-          <div className="stat-card" style={{ animationDelay: '0.2s' }}>
+          <div
+            className={`stat-card ${activeKPI === 'pendentes' ? 'active' : ''}`}
+            style={{ animationDelay: '0.2s', cursor: 'pointer' }}
+            onClick={() => handleKPIClick('pendentes')}
+          >
             <div className="stat-icon green">⚡</div>
             <div className="stat-content">
               <div className="stat-label">Pendentes</div>
@@ -861,7 +910,11 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
             </div>
           </div>
 
-          <div className="stat-card" style={{ animationDelay: '0.3s' }}>
+          <div
+            className={`stat-card ${activeKPI === 'urgencia' ? 'active' : ''}`}
+            style={{ animationDelay: '0.3s', cursor: 'pointer' }}
+            onClick={() => handleKPIClick('urgencia')}
+          >
             <div className="stat-icon red">📈</div>
             <div className="stat-content">
               <div className="stat-label">Taxa Urgência</div>
@@ -895,7 +948,7 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
             <div className="timeline-days">
               {weekDays.map((dia, index) => {
                 const isToday = dia === todayName;
-                const count = agenda[dia].length;
+                const count = filteredAgenda[dia].length;
                 return (
                   <div key={dia} className="timeline-day">
                     <div className={`day-indicator ${isToday ? 'today' : ''} ${count > 0 ? 'has-deliveries' : ''}`}>
@@ -915,7 +968,7 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
           <div className="stores-grid">
             {weekDays.map(dia => (
               <div key={dia} className="day-column">
-                {agenda[dia].map(loja => (
+                {filteredAgenda[dia].map(loja => (
                   <div
                     key={loja.id}
                     className={`store-card ${loja.urgent ? 'urgent' : ''}`}

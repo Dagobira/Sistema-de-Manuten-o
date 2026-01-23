@@ -680,29 +680,53 @@ const modernStyles = `
   /* PRINT STYLES */
   @media print {
     @page {
-      size: A4;
-      margin: 10mm;
+      size: A4 portrait;
+      margin: 8mm;
+    }
+
+    html, body {
+      width: 100%;
+      height: auto;
+      margin: 0;
+      padding: 0;
+      overflow: visible;
     }
 
     * {
       box-shadow: none !important;
       animation: none !important;
+      transition: none !important;
     }
 
     body * {
-      visibility: hidden;
+      visibility: hidden !important;
     }
 
-    .modal-overlay {
-      position: static !important;
-      display: block !important;
-      background: none !important;
-      backdrop-filter: none !important;
-    }
-
+    /* Forçar visibilidade apenas do modal */
+    .modal-overlay,
+    .modal-overlay *,
     .modal-content,
     .modal-content * {
       visibility: visible !important;
+    }
+
+    .modal-overlay {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: auto !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
+      display: block !important;
+      background: white !important;
+      backdrop-filter: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      overflow: visible !important;
+      page-break-after: avoid !important;
     }
 
     .modal-content {
@@ -712,6 +736,7 @@ const modernStyles = `
       width: 100% !important;
       max-width: 100% !important;
       height: auto !important;
+      min-height: 0 !important;
       max-height: none !important;
       overflow: visible !important;
       box-shadow: none !important;
@@ -722,13 +747,23 @@ const modernStyles = `
       display: block !important;
       background: white !important;
       color: black !important;
+      page-break-inside: avoid !important;
+      page-break-after: avoid !important;
     }
 
     .invoice-header {
-      padding: 15px 20px !important;
+      padding: 12px 16px !important;
       background: white !important;
-      border-bottom: 2px solid #333 !important;
+      border-bottom: 2px solid #000 !important;
       page-break-after: avoid !important;
+      page-break-inside: avoid !important;
+      margin: 0 !important;
+    }
+
+    .brand-section,
+    .details-grid,
+    .detail-group {
+      page-break-inside: avoid !important;
     }
 
     .doc-type,
@@ -739,22 +774,36 @@ const modernStyles = `
       color: black !important;
     }
 
+    .store-name-modal {
+      font-size: 22px !important;
+      margin: 6px 0 !important;
+    }
+
     .modal-body {
       overflow: visible !important;
       height: auto !important;
+      min-height: 0 !important;
+      max-height: none !important;
       background: white !important;
       padding: 0 !important;
-      page-break-inside: avoid !important;
+      margin: 0 !important;
+      page-break-before: avoid !important;
+      page-break-inside: auto !important;
     }
 
     .order-table {
       width: 100% !important;
       border-collapse: collapse !important;
       page-break-inside: auto !important;
+      margin: 0 !important;
     }
 
     .order-table thead {
       display: table-header-group !important;
+    }
+
+    .order-table tbody {
+      display: table-row-group !important;
     }
 
     .order-table tr {
@@ -763,17 +812,20 @@ const modernStyles = `
     }
 
     .order-table th {
-      background: #f0f0f0 !important;
+      background: #f5f5f5 !important;
       color: #000 !important;
-      border-bottom: 2px solid #333 !important;
-      padding: 10px 12px !important;
+      border: 1px solid #333 !important;
+      padding: 8px 10px !important;
+      font-size: 11px !important;
       position: static !important;
+      font-weight: 600 !important;
     }
 
     .order-table td {
-      border-bottom: 1px solid #ddd !important;
+      border: 1px solid #ddd !important;
       color: #000 !important;
-      padding: 8px 12px !important;
+      padding: 6px 10px !important;
+      font-size: 11px !important;
     }
 
     .sku-badge,
@@ -782,6 +834,8 @@ const modernStyles = `
       background: #eee !important;
       border: 1px solid #999 !important;
       box-shadow: none !important;
+      padding: 2px 6px !important;
+      font-size: 10px !important;
     }
 
     .modal-footer {
@@ -789,11 +843,26 @@ const modernStyles = `
     }
 
     .empty-state {
-      padding: 40px 20px !important;
+      padding: 30px 20px !important;
+      page-break-inside: avoid !important;
     }
 
     .empty-state-icon {
-      font-size: 48px !important;
+      font-size: 40px !important;
+    }
+
+    /* Esconder absolutamente tudo que não é necessário */
+    .logistics-container,
+    .kpi-stats-grid,
+    .logistics-header,
+    .timeline-container,
+    .stores-grid,
+    nav,
+    header,
+    footer,
+    .sidebar {
+      display: none !important;
+      visibility: hidden !important;
     }
   }
 

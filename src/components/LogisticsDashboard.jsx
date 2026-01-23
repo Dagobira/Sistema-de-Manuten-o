@@ -681,7 +681,12 @@ const modernStyles = `
   @media print {
     @page {
       size: A4;
-      margin: 15mm;
+      margin: 10mm;
+    }
+
+    * {
+      box-shadow: none !important;
+      animation: none !important;
     }
 
     body * {
@@ -689,37 +694,106 @@ const modernStyles = `
     }
 
     .modal-overlay {
-      position: static;
-      display: block;
-      background: none;
+      position: static !important;
+      display: block !important;
+      background: none !important;
+      backdrop-filter: none !important;
     }
 
     .modal-content,
     .modal-content * {
-      visibility: visible;
+      visibility: visible !important;
     }
 
     .modal-content {
-      position: relative;
+      position: relative !important;
+      left: 0 !important;
+      top: 0 !important;
       width: 100% !important;
       max-width: 100% !important;
-      box-shadow: none;
-      border: none;
+      height: auto !important;
+      max-height: none !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      display: block !important;
       background: white !important;
       color: black !important;
     }
 
-    .modal-footer {
-      display: none;
+    .invoice-header {
+      padding: 15px 20px !important;
+      background: white !important;
+      border-bottom: 2px solid #333 !important;
+      page-break-after: avoid !important;
+    }
+
+    .doc-type,
+    .store-name-modal,
+    .store-meta,
+    .detail-label,
+    .detail-value {
+      color: black !important;
+    }
+
+    .modal-body {
+      overflow: visible !important;
+      height: auto !important;
+      background: white !important;
+      padding: 0 !important;
+      page-break-inside: avoid !important;
+    }
+
+    .order-table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      page-break-inside: auto !important;
+    }
+
+    .order-table thead {
+      display: table-header-group !important;
+    }
+
+    .order-table tr {
+      page-break-inside: avoid !important;
+      page-break-after: auto !important;
     }
 
     .order-table th {
       background: #f0f0f0 !important;
       color: #000 !important;
+      border-bottom: 2px solid #333 !important;
+      padding: 10px 12px !important;
+      position: static !important;
     }
 
     .order-table td {
+      border-bottom: 1px solid #ddd !important;
       color: #000 !important;
+      padding: 8px 12px !important;
+    }
+
+    .sku-badge,
+    .qty-badge {
+      color: #000 !important;
+      background: #eee !important;
+      border: 1px solid #999 !important;
+      box-shadow: none !important;
+    }
+
+    .modal-footer {
+      display: none !important;
+    }
+
+    .empty-state {
+      padding: 40px 20px !important;
+    }
+
+    .empty-state-icon {
+      font-size: 48px !important;
     }
   }
 

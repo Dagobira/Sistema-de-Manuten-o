@@ -381,13 +381,13 @@ const modernStyles = `
     right: -8px;
     background: linear-gradient(135deg, #FF3B30 0%, #C62828 100%);
     color: white;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 700;
     box-shadow: 0 4px 12px rgba(255, 59, 48, 0.4);
     animation: pulse 2s infinite;

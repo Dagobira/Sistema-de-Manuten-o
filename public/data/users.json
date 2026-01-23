@@ -22,5 +22,18 @@
         "permissions": [
             "compras"
         ]
+    },
+    {
+        "id": 3,
+        "name": "Filipe Costa",
+        "email": "filipe_costa@admin.com",
+        "password": "@VXlab123",
+        "role": "user",
+        "permissions": [
+            "analise",
+            "qualidade",
+            "logistica",
+            "compras"
+        ]
     }
 ]

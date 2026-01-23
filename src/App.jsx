@@ -9,6 +9,7 @@ import TopLists from "./components/TopLists";
 import QualityDashboard from "./components/QualityDashboard";
 import LogisticsDashboard from "./components/LogisticsDashboard";
 import SistemaCompras from "./components/SistemaCompras";
+import Remanejamento from "./components/Remanejamento"; // [NOVO]
 
 import { loadCSV } from "./lib/csv";
 import {
@@ -99,15 +100,22 @@ export default function App() {
             <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
             <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Logística</button>
             <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras</button>
+            <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento</button>
           </div>
           <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
         </aside>
 
         <main className="main">
-          <div className="topbar"><h1>{view === "analise" ? "Análise" : view === "qualidade" ? "Qualidade" : view === "logistica" ? "Logística" : "Sugestão de Compras"}</h1></div>
+          <div className="topbar"><h1>{
+            view === "analise" ? "Análise" :
+              view === "qualidade" ? "Qualidade" :
+                view === "logistica" ? "Logística" :
+                  view === "compras" ? "Sugestão de Compras" :
+                    "Remanejamento de Estoque"
+          }</h1></div>
           {!loading && !err && (
             <>
-              {view !== "logistica" && view !== "compras" && (
+              {view !== "logistica" && view !== "compras" && view !== "remanejamento" && (
                 <div className="floatingWrap">
                   <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
                   {view === "analise" && <div className="floatingPanel"><ParamsPanel params={params} setParams={setParams} /></div>}
@@ -117,6 +125,7 @@ export default function App() {
               {view === "qualidade" && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
               {view === "logistica" && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
               {view === "compras" && <SistemaCompras />}
+              {view === "remanejamento" && <Remanejamento />}
             </>
           )}
         </main>

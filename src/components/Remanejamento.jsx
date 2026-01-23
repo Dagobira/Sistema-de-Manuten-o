@@ -1,9 +1,22 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { loadCSV, toNumber } from '../lib/csv';
+import { loadCSV } from '../lib/csv';
 import { buildLojasMap, normalizeMovRows, buildProductMap } from '../lib/engine';
 import './Remanejamento.css';
+
+// Helper local para garantir parsing numérico
+function safeNum(val) {
+    if (typeof val === 'number') return val;
+    if (!val) return 0;
+    // Remove R$ e espaços
+    let s = String(val).replace('R$', '').trim();
+    // Trata 1.000,00 vs 1000.00
+    if (s.includes(',') && s.includes('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else if (s.includes(',')) s = s.replace(',', '.');
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+}
 
 export default function Remanejamento() {
     const [loading, setLoading] = useState(true);
@@ -50,7 +63,7 @@ export default function Remanejamento() {
                     const labName = (row.Laboratorio || row.Lab || "").trim();
                     if (!sku || !labName) return;
 
-                    const qtd = toNumber(row.QtdEstoque || row.Estoque || row.Saldo);
+                    const qtd = safeNum(row.QtdEstoque || row.Estoque || row.Saldo);
                     const avg = getAvg(labName, sku);
                     const lojaInfo = lojasMap.get(labName);
                     const uf = lojaInfo ? lojaInfo.uf : 'N/A';
@@ -65,7 +78,7 @@ export default function Remanejamento() {
                                 lab: labName,
                                 uf,
                                 available: excess,
-                                totalStock: qtd // Store original stock
+                                stockOrigin: qtd // Renamed
                             });
                         }
                     } else if (coverage < 1) {
@@ -77,7 +90,7 @@ export default function Remanejamento() {
                                 uf,
                                 sku,
                                 need,
-                                currentStock: qtd,
+                                stockDest: qtd,  // Renamed
                                 avg,
                                 prodName: prodMap.get(sku)?.descricao || 'Item Desconhecido',
                                 cost: prodMap.get(sku)?.preco || 0
@@ -89,9 +102,9 @@ export default function Remanejamento() {
                 const transferSuggestions = [];
                 let totalStats = { qty: 0, actions: 0, money: 0 };
 
-                for (const req of receivers) {
+                receivers.forEach(req => { // Using forEach for cleaner scope
                     const potentialDonors = donors.get(req.sku);
-                    if (!potentialDonors || potentialDonors.length === 0) continue;
+                    if (!potentialDonors || potentialDonors.length === 0) return;
 
                     potentialDonors.sort((a, b) => {
                         const aSameState = (a.uf === req.uf) ? 1 : 0;
@@ -122,14 +135,15 @@ export default function Remanejamento() {
                             transferSuggestions.push(route);
                         }
 
-                        // Enhanced Item Structure
+                        const covVal = req.avg > 0 ? (req.stockDest / req.avg).toFixed(1) : "0.0";
+
                         route.items.push({
                             sku: req.sku,
                             name: req.prodName,
                             qty: transferQty,
-                            donorStock: donor.totalStock,
-                            receiverStock: req.currentStock,
-                            receiverCov: (req.currentStock / req.avg).toFixed(1)
+                            origin: donor.stockOrigin, // Explicit assign
+                            dest: req.stockDest,       // Explicit assign
+                            cov: covVal
                         });
 
                         donor.available -= transferQty;
@@ -138,7 +152,7 @@ export default function Remanejamento() {
                         totalStats.qty += transferQty;
                         totalStats.money += (transferQty * req.cost);
                     }
-                }
+                });
 
                 totalStats.actions = transferSuggestions.length;
                 setRoutes(transferSuggestions.sort((a, b) => b.isIntraState - a.isIntraState));
@@ -180,8 +194,8 @@ export default function Remanejamento() {
             const body = route.items.map(it => [
                 it.sku,
                 it.name,
-                `${it.donorStock} -> ${it.donorStock - it.qty}`, // Stock change visualisation
-                `${it.receiverStock} (+${it.qty})`,
+                `${it.origin} -> ${it.origin - it.qty}`,
+                `${it.dest} (+${it.qty})`,
                 it.qty
             ]);
 
@@ -206,7 +220,7 @@ export default function Remanejamento() {
 
     return (
         <div className="remanejamento-container">
-            {/* Top Metrics */}
+            {/* Metrics */}
             <div className="remanejamento-metrics">
                 <div className="rm-card blue">
                     <div className="rm-label">Total a Remanejar</div>
@@ -225,14 +239,14 @@ export default function Remanejamento() {
                 </div>
             </div>
 
-            {/* Actions */}
+            {/* Button */}
             <div className="rm-actions">
                 <button className="btn-generate" onClick={handleExportPDF}>
                     📄 Gerar Ordem (PDF)
                 </button>
             </div>
 
-            {/* Routes List */}
+            {/* List */}
             <div className="routes-container">
                 {routes.map((route, idx) => (
                     <div key={route.key} className="route-group">
@@ -269,18 +283,18 @@ export default function Remanejamento() {
                                         <td className="sku-code">{item.sku}</td>
                                         <td>{item.name}</td>
                                         <td className="center">
-                                            <span className="stock-info donor">{item.donorStock}</span>
+                                            <span className="stock-info donor">{item.origin}</span>
                                         </td>
                                         <td className="center">
-                                            <span className="stock-info">{item.receiverStock}</span>
+                                            <span className="stock-info">{item.dest}</span>
                                         </td>
                                         <td className="center">
                                             <span className="qty-pill">{item.qty}</span>
                                         </td>
                                         <td>
-                                            {Number(item.receiverStock) === 0 ?
+                                            {Number(item.dest) === 0 ?
                                                 <span className="status-badge critical">ZERADO</span> :
-                                                <span className="status-badge low">BAIXO ({item.receiverCov}m)</span>
+                                                <span className="status-badge low">BAIXO ({item.cov}m)</span>
                                             }
                                         </td>
                                     </tr>
@@ -292,7 +306,7 @@ export default function Remanejamento() {
 
                 {routes.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                        Nenhuma oportunidade de balanceamento encontrada com as regras atuais.
+                        Nenhuma oportunidade de balanceamento encontrada.
                     </div>
                 )}
             </div>

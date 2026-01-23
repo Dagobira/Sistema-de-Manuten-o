@@ -6,7 +6,7 @@
     padding: 20px;
     height: 100%;
     box-sizing: border-box;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Poppins', sans-serif;
     background-color: transparent;
     /* Usa fundo do tema */
 }
@@ -19,38 +19,38 @@
 }
 
 .kpi-card {
-    background-color: var(--card-bg, #fff);
+    background-color: var(--card-color, #fff);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-    /* Sombra suave */
+    box-shadow: 0px 4px 12px rgba(30, 136, 229, 0.08);
     display: flex;
     flex-direction: column;
-    border-left: 5px solid transparent;
-    transition: transform 0.2s;
+    border-top: 4px solid transparent;
+    transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .kpi-card:hover {
     transform: translateY(-2px);
+    box-shadow: 0px 8px 24px rgba(30, 136, 229, 0.12);
 }
 
 .kpi-card.blue {
-    border-left-color: #3b82f6;
+    border-top-color: #1E88E5;
 }
 
 .kpi-card.green {
-    border-left-color: #10b981;
+    border-top-color: #43A047;
 }
 
 .kpi-card.red {
-    border-left-color: #ef4444;
+    border-top-color: #E53935;
 }
 
 .kpi-title {
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: var(--text-secondary, #6b7280);
+    color: var(--text-secondary, #757575);
     margin-bottom: 8px;
     font-weight: 600;
 }
@@ -58,11 +58,11 @@
 .kpi-value {
     font-size: 1.75rem;
     font-weight: 700;
-    color: var(--text-primary, #111827);
+    color: var(--text-primary, #333);
 }
 
 .kpi-value.critical {
-    color: #ef4444;
+    color: #E53935;
 }
 
 /* Toolbar de Filtro */
@@ -70,12 +70,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: var(--card-bg, #fff);
+    background-color: var(--card-color, #fff);
     padding: 16px 20px;
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0px 4px 12px rgba(30, 136, 229, 0.08);
     flex-wrap: wrap;
     gap: 12px;
+    border-top: 4px solid #43A047;
 }
 
 .search-input {
@@ -83,36 +84,36 @@
     min-width: 200px;
     max-width: 400px;
     padding: 10px 16px;
-    border: 1px solid var(--border-color, #e5e7eb);
+    border: 2px solid var(--border-color, #E0E7FF);
     border-radius: 8px;
     font-size: 0.95rem;
     outline: none;
-    background-color: var(--input-bg, #f9fafb);
-    color: var(--text-primary, #111827);
-    transition: border-color 0.2s;
+    background-color: var(--input-bg, #fff);
+    color: var(--text-primary, #333);
+    transition: all 0.2s;
 }
 
 .filter-select {
     min-width: 180px;
     padding: 10px 16px;
-    border: 1px solid var(--border-color, #e5e7eb);
+    border: 2px solid var(--border-color, #E0E7FF);
     border-radius: 8px;
     font-size: 0.95rem;
     outline: none;
-    background-color: var(--input-bg, #f9fafb);
-    color: var(--text-primary, #111827);
+    background-color: var(--input-bg, #fff);
+    color: var(--text-primary, #333);
     cursor: pointer;
-    transition: border-color 0.2s;
+    transition: all 0.2s;
 }
 
 .search-input:focus,
 .filter-select:focus {
-    border-color: #3b82f6;
-    background-color: var(--card-bg, #fff);
+    border-color: #1E88E5;
+    box-shadow: 0 0 0 3px rgba(30, 136, 229, 0.1);
 }
 
 .btn-export {
-    background-color: #ef4444;
+    background: linear-gradient(135deg, #E53935 0%, #D32F2F 100%);
     color: white;
     border: none;
     padding: 10px 20px;
@@ -122,22 +123,25 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: background-color 0.2s;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(229, 57, 53, 0.25);
 }
 
 .btn-export:hover {
-    background-color: #dc2626;
+    box-shadow: 0 6px 16px rgba(229, 57, 53, 0.35);
+    transform: translateY(-1px);
 }
 
 /* Tabela */
 .table-container {
     flex: 1;
-    background-color: var(--card-bg, #fff);
+    background-color: var(--card-color, #fff);
     border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0px 4px 12px rgba(30, 136, 229, 0.08);
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border-top: 4px solid #1E88E5;
 }
 
 .data-table-wrapper {
@@ -152,7 +156,7 @@
 }
 
 .compras-table thead {
-    background-color: var(--header-bg, #f3f4f6);
+    background-color: #F8FAFE;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -163,9 +167,9 @@
     font-size: 0.85rem;
     font-weight: 600;
     text-transform: uppercase;
-    color: var(--text-secondary, #4b5563);
+    color: #757575;
     text-align: left;
-    border-bottom: 2px solid var(--border-color, #e5e7eb);
+    border-bottom: 2px solid #E0E7FF;
 }
 
 .compras-table th.right {
@@ -177,7 +181,7 @@
 }
 
 .compras-table tbody tr {
-    border-bottom: 1px solid var(--border-color, #f3f4f6);
+    border-bottom: 1px solid #EEF2FF;
     transition: background-color 0.1s;
 }
 
@@ -186,19 +190,19 @@
 }
 
 .compras-table tbody tr:hover {
-    background-color: var(--hover-bg, #f9fafb);
+    background-color: rgba(30, 136, 229, 0.03);
 }
 
 .compras-table td {
     padding: 14px 20px;
     font-size: 0.95rem;
-    color: var(--text-primary, #374151);
+    color: #333;
     vertical-align: middle;
 }
 
 .compras-table td.sku {
     font-family: 'Roboto Mono', monospace;
-    color: var(--text-secondary, #6b7280);
+    color: #757575;
     font-size: 0.85rem;
 }
 
@@ -215,7 +219,7 @@
 }
 
 .sugestao-val {
-    color: #2563eb;
+    color: #1E88E5;
     font-weight: 700;
 }
 
@@ -223,7 +227,7 @@
 .badge {
     display: inline-block;
     padding: 4px 10px;
-    border-radius: 20px;
+    border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -231,13 +235,13 @@
 }
 
 .badge.comprar {
-    background-color: #fee2e2;
-    color: #b91c1c;
+    background: rgba(229, 57, 53, 0.1);
+    color: #C62828;
 }
 
 .badge.ok {
-    background-color: #d1fae5;
-    color: #047857;
+    background: rgba(67, 160, 71, 0.1);
+    color: #2E7D32;
 }
 
 /* Scrollbar Bonita */
@@ -251,12 +255,12 @@
 }
 
 .data-table-wrapper::-webkit-scrollbar-thumb {
-    background: #d1d5db;
+    background: #C5CAE9;
     border-radius: 4px;
 }
 
 .data-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #9ca3af;
+    background: #1E88E5;
 }
 
 /* ========================================= */
@@ -266,81 +270,69 @@
 [data-theme="dark"] .kpi-card,
 [data-theme="dark"] .toolbar,
 [data-theme="dark"] .table-container {
-    background-color: #1f2937;
-    /* Cinza escuro */
-    color: #f3f4f6;
+    background-color: #1A1F3A;
+    color: #fff;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-    /* Sombra mais forte no dark */
 }
 
-/* Texto Geral */
 [data-theme="dark"] .kpi-value {
-    color: #f3f4f6;
+    color: #fff;
 }
 
 [data-theme="dark"] .kpi-title {
-    color: #9ca3af;
+    color: #B0B8D4;
 }
 
-/* Inputs e Selects */
 [data-theme="dark"] .search-input,
 [data-theme="dark"] .filter-select {
-    background-color: #374151;
-    /* Cinza médio */
-    border-color: #4b5563;
-    color: #f3f4f6;
+    background-color: #1A1F3A;
+    border-color: #2A3150;
+    color: #fff;
 }
 
 [data-theme="dark"] .search-input:focus,
 [data-theme="dark"] .filter-select:focus {
-    border-color: #60a5fa;
-    /* Azul claro */
-    background-color: #4b5563;
+    border-color: #42A5F5;
+    background-color: #1F2437;
 }
 
 [data-theme="dark"] .search-input::placeholder {
-    color: #9ca3af;
+    color: #B0B8D4;
 }
 
-/* Tabela Headers */
 [data-theme="dark"] .compras-table thead {
-    background-color: #111827;
-    /* Quase preto */
+    background-color: #151929;
 }
 
 [data-theme="dark"] .compras-table th {
-    color: #d1d5db;
-    border-bottom-color: #374151;
+    color: #B0B8D4;
+    border-bottom-color: #2A3150;
 }
 
-/* Tabela Body */
 [data-theme="dark"] .compras-table tbody tr {
-    border-bottom-color: #374151;
+    border-bottom-color: #2A3150;
 }
 
 [data-theme="dark"] .compras-table tbody tr:hover {
-    background-color: #374151;
+    background-color: #1F2437;
 }
 
 [data-theme="dark"] .compras-table td {
-    color: #e5e7eb;
+    color: #fff;
 }
 
 [data-theme="dark"] .compras-table td.sku {
-    color: #9ca3af;
+    color: #B0B8D4;
 }
 
-/* Sugestão Valor (destaque) */
 [data-theme="dark"] .sugestao-val {
-    color: #60a5fa;
-    /* Azul claro para ler no escuro */
+    color: #42A5F5;
 }
 
-/* Scrollbar Dark */
 [data-theme="dark"] .data-table-wrapper::-webkit-scrollbar-thumb {
-    background: #4b5563;
+    background: #3A4166;
 }
 
 [data-theme="dark"] .data-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #6b7280;
+    background: #42A5F5;
 }

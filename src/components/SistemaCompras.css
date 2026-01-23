@@ -14,7 +14,7 @@
 /* Cards de KPI */
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
 }
 
@@ -81,7 +81,6 @@
 .search-input {
     flex: 1;
     min-width: 200px;
-    /* Garante que não esmague */
     max-width: 400px;
     padding: 10px 16px;
     border: 1px solid var(--border-color, #e5e7eb);
@@ -114,7 +113,6 @@
 
 .btn-export {
     background-color: #ef4444;
-    /* Vermelho para PDF ser distinto ou azul padrão */
     color: white;
     border: none;
     padding: 10px 20px;
@@ -138,7 +136,6 @@
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     overflow: hidden;
-    /* Para border-radius */
     display: flex;
     flex-direction: column;
 }
@@ -201,7 +198,6 @@
 
 .compras-table td.sku {
     font-family: 'Roboto Mono', monospace;
-    /* Se disponível, ou monospace genérico */
     color: var(--text-secondary, #6b7280);
     font-size: 0.85rem;
 }
@@ -263,24 +259,88 @@
     background: #9ca3af;
 }
 
-/* Dark Mode Suporte (básico, assumindo que vars são trocadas no pai) */
+/* ========================================= */
+/*               DARK MODE FIXES             */
+/* ========================================= */
+
 [data-theme="dark"] .kpi-card,
 [data-theme="dark"] .toolbar,
 [data-theme="dark"] .table-container {
     background-color: #1f2937;
+    /* Cinza escuro */
+    color: #f3f4f6;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+    /* Sombra mais forte no dark */
+}
+
+/* Texto Geral */
+[data-theme="dark"] .kpi-value {
     color: #f3f4f6;
 }
 
-[data-theme="dark"] .search-input {
+[data-theme="dark"] .kpi-title {
+    color: #9ca3af;
+}
+
+/* Inputs e Selects */
+[data-theme="dark"] .search-input,
+[data-theme="dark"] .filter-select {
     background-color: #374151;
+    /* Cinza médio */
     border-color: #4b5563;
     color: #f3f4f6;
 }
 
+[data-theme="dark"] .search-input:focus,
+[data-theme="dark"] .filter-select:focus {
+    border-color: #60a5fa;
+    /* Azul claro */
+    background-color: #4b5563;
+}
+
+[data-theme="dark"] .search-input::placeholder {
+    color: #9ca3af;
+}
+
+/* Tabela Headers */
 [data-theme="dark"] .compras-table thead {
     background-color: #111827;
+    /* Quase preto */
+}
+
+[data-theme="dark"] .compras-table th {
+    color: #d1d5db;
+    border-bottom-color: #374151;
+}
+
+/* Tabela Body */
+[data-theme="dark"] .compras-table tbody tr {
+    border-bottom-color: #374151;
 }
 
 [data-theme="dark"] .compras-table tbody tr:hover {
     background-color: #374151;
+}
+
+[data-theme="dark"] .compras-table td {
+    color: #e5e7eb;
+}
+
+[data-theme="dark"] .compras-table td.sku {
+    color: #9ca3af;
+}
+
+/* Sugestão Valor (destaque) */
+[data-theme="dark"] .sugestao-val {
+    color: #60a5fa;
+    /* Azul claro para ler no escuro */
+}
+
+/* Scrollbar Dark */
+[data-theme="dark"] .data-table-wrapper::-webkit-scrollbar-thumb {
+    background: #4b5563;
+}
+
+[data-theme="dark"] .data-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #6b7280;
 }

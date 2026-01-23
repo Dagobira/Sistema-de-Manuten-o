@@ -9,10 +9,6 @@ import TopLists from "./components/TopLists";
 import QualityDashboard from "./components/QualityDashboard";
 import LogisticsDashboard from "./components/LogisticsDashboard";
 import SistemaCompras from "./components/SistemaCompras";
-import AdminPanel from "./components/AdminPanel";
-import Login from "./pages/Login";
-
-import { AuthProvider, useAuth } from "./context/AuthContext";
 
 import { loadCSV } from "./lib/csv";
 import {
@@ -21,9 +17,7 @@ import {
   buildLojasMap, buildTecnicosMap, normalizeDefectRows
 } from "./lib/engine";
 
-function ProtectedApp() {
-  const { user, loading: authLoading, logout, canAccess } = useAuth();
-
+export default function App() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [view, setView] = useState("analise");
@@ -46,8 +40,6 @@ function ProtectedApp() {
   const [params, setParams] = useState({ coberturaAlvoMeses: 3, transferenciaMinima: 2, regra6m: 6, regra12m: 12 });
 
   useEffect(() => {
-    if (!user) return; // Só carrega se tiver user
-
     (async () => {
       try {
         setLoading(true); setErr("");
@@ -77,7 +69,7 @@ function ProtectedApp() {
         setLoading(false);
       } catch (e) { console.error(e); setErr(String(e.message)); setLoading(false); }
     })();
-  }, [user]);
+  }, []);
 
   const computed = useMemo(() => {
     if (!movRows.length) return { rows: [] };
@@ -97,97 +89,38 @@ function ProtectedApp() {
     });
   }, [computed.rows, kpiFilter]);
 
-  if (authLoading) return <div className="loading">Carregando Sessão...</div>;
-  if (!user) return <Login />;
-
   return (
     <div className="page" data-theme={theme}>
       <div className="appShell">
         <aside className="sidebar">
-          <div className="sidebarHeader">
-            <div className="sidebarTitle">Produto x Tempo</div>
-            <small style={{ display: 'block', color: '#6b7280', fontSize: '0.7rem', marginTop: '4px' }}>
-              Olá, {user.name}
-            </small>
-          </div>
-
+          <div className="sidebarHeader"><div className="sidebarTitle">Produto x Tempo</div></div>
           <div className="navList">
-            {canAccess('analise') &&
-              <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise Estoque</button>
-            }
-            {canAccess('qualidade') &&
-              <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
-            }
-            {canAccess('logistica') &&
-              <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Logística</button>
-            }
-            {canAccess('compras') &&
-              <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras</button>
-            }
-            {canAccess('admin') &&
-              <button className={`navItem ${view === "admin" ? "navItemActive" : ""}`} onClick={() => setView("admin")}>⚙️ Adm Usuários</button>
-            }
+            <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise Estoque</button>
+            <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
+            <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Logística</button>
+            <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras</button>
           </div>
-
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
-            <button className="themeToggle" style={{ background: '#ef4444', color: 'white', border: 'none' }} onClick={logout}>Sair</button>
-          </div>
+          <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
         </aside>
 
         <main className="main">
-          {canAccess(view) ? (
+          <div className="topbar"><h1>{view === "analise" ? "Análise" : view === "qualidade" ? "Qualidade" : view === "logistica" ? "Logística" : "Sugestão de Compras"}</h1></div>
+          {!loading && !err && (
             <>
-              <div className="topbar">
-                <h1>{
-                  view === "analise" ? "Análise" :
-                    view === "qualidade" ? "Qualidade" :
-                      view === "logistica" ? "Logística" :
-                        view === "admin" ? "Administração" :
-                          "Sugestão de Compras"
-                }</h1>
-              </div>
-
-              {!loading && !err && (
-                <>
-                  {/* Floating Panel só aparece em views que não são full-dashboard (exceto analise que usa floating panel) */}
-                  {view === "analise" && (
-                    <div className="floatingWrap">
-                      <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
-                      <div className="floatingPanel"><ParamsPanel params={params} setParams={setParams} /></div>
-                    </div>
-                  )}
-                  {view === "qualidade" && (
-                    <div className="floatingWrap">
-                      <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
-                    </div>
-                  )}
-
-                  {view === "analise" && <><KPICards rows={computed.rows} activeFilter={kpiFilter} onCardClick={setKpiFilter} /><ResultTable rows={displayedRows} /><TopLists rows={displayedRows} /></>}
-                  {view === "qualidade" && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
-                  {view === "logistica" && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
-                  {view === "compras" && <SistemaCompras />}
-                  {view === "admin" && <AdminPanel />}
-                </>
+              {view !== "logistica" && view !== "compras" && (
+                <div className="floatingWrap">
+                  <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
+                  {view === "analise" && <div className="floatingPanel"><ParamsPanel params={params} setParams={setParams} /></div>}
+                </div>
               )}
-              {loading && <div className="loading">Carregando Dados...</div>}
+              {view === "analise" && <><KPICards rows={computed.rows} activeFilter={kpiFilter} onCardClick={setKpiFilter} /><ResultTable rows={displayedRows} /><TopLists rows={displayedRows} /></>}
+              {view === "qualidade" && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
+              {view === "logistica" && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
+              {view === "compras" && <SistemaCompras />}
             </>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full">
-              <h2 className="text-2xl font-bold text-gray-400">Acesso Negado</h2>
-              <p className="text-gray-500">Você não tem permissão para acessar esta tela.</p>
-            </div>
           )}
         </main>
       </div>
     </div>
-  );
-}
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <ProtectedApp />
-    </AuthProvider>
   );
 }

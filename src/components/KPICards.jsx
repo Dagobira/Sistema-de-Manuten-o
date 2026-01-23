@@ -7,19 +7,19 @@ export default function KPICards({ rows, activeFilter, onCardClick }) {
       (acc, r) => {
         // Críticos: Cobertura < 1 e tem Estoque Alvo
         if ((r.CoberturaMeses || 0) < 1 && (r.EstoqueAlvo || 0) > 0) acc.criticos++;
-        
+
         // Reposição Sugerida
         if ((r.ReposicaoSugeridaBruta || 0) > 0) acc.sugerida++;
-        
+
         // Possível Matriz
         if ((r.ReposicaoPossivelMatriz || 0) > 0) acc.matriz++;
-        
+
         // Pendente (Sugerida - Matriz)
         if ((r.ReposicaoPendente || 0) > 0) acc.pendente++;
-        
+
         // Devolução
         if ((r.DevolverSugerido || 0) > 0) acc.devolucao++;
-        
+
         // Sem Giro (Verificando string do Status)
         const st = String(r.Status || "").toLowerCase();
         if (st.includes("6m")) acc.semGiro6++;
@@ -50,7 +50,8 @@ export default function KPICards({ rows, activeFilter, onCardClick }) {
           <div
             key={c.id}
             className={`kpiCard ${isActive ? "active" : ""} kpi-${c.color}`}
-            onClick={() => onCardClick(c.id)}
+            onClick={() => onCardClick(isActive ? null : c.id)}
+            style={{ cursor: 'pointer' }}
           >
             <div className="kpiTitle">{c.label}</div>
             <div className="kpiValue">{c.val}</div>

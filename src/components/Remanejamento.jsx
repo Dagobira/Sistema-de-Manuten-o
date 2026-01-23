@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { loadCSV, toNumber } from '../lib/csv';
-import { buildLojasMap, normalizeMovRows, buildProductMap } from '../lib/engine'; // Reusing engine logic
+import { buildLojasMap, normalizeMovRows, buildProductMap } from '../lib/engine';
 import './Remanejamento.css';
 
 export default function Remanejamento() {
@@ -21,13 +21,11 @@ export default function Remanejamento() {
                     loadCSV('/data/stg_lojas.csv')
                 ]);
 
-                // 1. Map Data
                 const prodMap = buildProductMap(prodRows);
                 const lojasMap = buildLojasMap(lojasRows);
-
-                // Map Movimentação -> Avg Sales per Lab/SKU
                 const normMovs = normalizeMovRows(movRows);
-                const salesMap = new Map(); // key: "LabName__SKU" -> TotalLast3Months
+                const salesMap = new Map();
+
                 const allDates = normMovs.map(r => r.Mes).filter(Boolean).sort();
                 const last3Months = new Set([...new Set(allDates)].sort().reverse().slice(0, 3));
 
@@ -44,9 +42,8 @@ export default function Remanejamento() {
                     return (salesMap.get(key) || 0) / 3;
                 };
 
-                // 2. Classify Donors & Receivers
-                const donors = new Map(); // SKU -> Array of { lab, uf, available }
-                const receivers = []; // Array of { lab, uf, sku, need, currentStock, avg }
+                const donors = new Map();
+                const receivers = [];
 
                 stockRows.forEach(row => {
                     const sku = String(row.SKU || row.Codigo || "").trim();
@@ -57,21 +54,22 @@ export default function Remanejamento() {
                     const avg = getAvg(labName, sku);
                     const lojaInfo = lojasMap.get(labName);
                     const uf = lojaInfo ? lojaInfo.uf : 'N/A';
-
                     const coverage = avg > 0 ? qtd / avg : (qtd > 0 ? 99 : 0);
 
-                    // Classification Logic
                     if (coverage > 4 && qtd > 0) {
-                        // DONOR
                         const safetyStock = Math.ceil(avg * 4);
                         const excess = qtd - safetyStock;
                         if (excess > 0) {
                             if (!donors.has(sku)) donors.set(sku, []);
-                            donors.get(sku).push({ lab: labName, uf, available: excess });
+                            donors.get(sku).push({
+                                lab: labName,
+                                uf,
+                                available: excess,
+                                totalStock: qtd // Store original stock
+                            });
                         }
                     } else if (coverage < 1) {
-                        // RECEIVER
-                        const target = Math.ceil(avg * 1); // Target 1 month
+                        const target = Math.ceil(avg * 1);
                         const need = target - qtd;
                         if (need > 0) {
                             receivers.push({
@@ -88,27 +86,20 @@ export default function Remanejamento() {
                     }
                 });
 
-                // 3. Matching Algorithm
                 const transferSuggestions = [];
                 let totalStats = { qty: 0, actions: 0, money: 0 };
 
-                // Process largest needs first? Or strictly by list? 
-                // Let's process receivers.
                 for (const req of receivers) {
                     const potentialDonors = donors.get(req.sku);
                     if (!potentialDonors || potentialDonors.length === 0) continue;
 
-                    // Priority 1: Same UF
-                    // Priority 2: Others
-                    // Sort donors: Same UF first, then by largest availability
                     potentialDonors.sort((a, b) => {
                         const aSameState = (a.uf === req.uf) ? 1 : 0;
                         const bSameState = (b.uf === req.uf) ? 1 : 0;
-                        if (aSameState !== bSameState) return bSameState - aSameState; // Same state first
-                        return b.available - a.available; // Most available first
+                        if (aSameState !== bSameState) return bSameState - aSameState;
+                        return b.available - a.available;
                     });
 
-                    // Fulfill need
                     let remainingNeed = req.need;
                     for (const donor of potentialDonors) {
                         if (remainingNeed <= 0) break;
@@ -116,7 +107,6 @@ export default function Remanejamento() {
 
                         const transferQty = Math.min(remainingNeed, donor.available);
 
-                        // Register Transfer
                         const routeKey = `${donor.lab}__${req.lab}`;
                         let route = transferSuggestions.find(r => r.key === routeKey);
                         if (!route) {
@@ -132,24 +122,26 @@ export default function Remanejamento() {
                             transferSuggestions.push(route);
                         }
 
+                        // Enhanced Item Structure
                         route.items.push({
                             sku: req.sku,
                             name: req.prodName,
                             qty: transferQty,
-                            reason: `Destino com ${req.currentStock} (Cov=${(req.currentStock / req.avg).toFixed(1)}m)`
+                            donorStock: donor.totalStock,
+                            receiverStock: req.currentStock,
+                            receiverCov: (req.currentStock / req.avg).toFixed(1)
                         });
 
-                        // Update stats
                         donor.available -= transferQty;
                         remainingNeed -= transferQty;
-                        statsLoop:
+
                         totalStats.qty += transferQty;
                         totalStats.money += (transferQty * req.cost);
                     }
                 }
 
                 totalStats.actions = transferSuggestions.length;
-                setRoutes(transferSuggestions.sort((a, b) => b.isIntraState - a.isIntraState)); // Local first
+                setRoutes(transferSuggestions.sort((a, b) => b.isIntraState - a.isIntraState));
                 setKpi({
                     totalPecas: totalStats.qty,
                     actions: totalStats.actions,
@@ -175,7 +167,6 @@ export default function Remanejamento() {
         let startY = 35;
 
         routes.forEach((route, i) => {
-            // Check page break
             if (startY > 250) {
                 doc.addPage();
                 startY = 20;
@@ -186,14 +177,21 @@ export default function Remanejamento() {
             doc.setFont(undefined, 'bold');
             doc.text(`Rota #${i + 1}: ${route.from} (${route.fromUF}) ➔ ${route.to} (${route.toUF})`, 16, startY + 7);
 
-            const body = route.items.map(it => [it.sku, it.name, it.qty, it.reason]);
+            const body = route.items.map(it => [
+                it.sku,
+                it.name,
+                `${it.donorStock} -> ${it.donorStock - it.qty}`, // Stock change visualisation
+                `${it.receiverStock} (+${it.qty})`,
+                it.qty
+            ]);
 
             doc.autoTable({
                 startY: startY + 12,
-                head: [['SKU', 'Produto', 'Qtd', 'Motivo']],
+                head: [['SKU', 'Produto', 'Estoque Origem', 'Estoque Destino', 'Enviar']],
                 body: body,
                 theme: 'grid',
                 headStyles: { fillColor: [60, 60, 60] },
+                styles: { fontSize: 8 },
                 margin: { left: 14 },
                 maxWidth: 180
             });
@@ -259,8 +257,10 @@ export default function Remanejamento() {
                                 <tr>
                                     <th>SKU</th>
                                     <th>Produto</th>
-                                    <th>Qtd</th>
-                                    <th>Motivo (Receptor)</th>
+                                    <th className="center">Estoque Origem</th>
+                                    <th className="center">Estoque Destino</th>
+                                    <th className="center">Qtd. a Enviar</th>
+                                    <th>Situação Destino</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -268,10 +268,21 @@ export default function Remanejamento() {
                                     <tr key={i}>
                                         <td className="sku-code">{item.sku}</td>
                                         <td>{item.name}</td>
-                                        <td>
+                                        <td className="center">
+                                            <span className="stock-info donor">{item.donorStock}</span>
+                                        </td>
+                                        <td className="center">
+                                            <span className="stock-info">{item.receiverStock}</span>
+                                        </td>
+                                        <td className="center">
                                             <span className="qty-pill">{item.qty}</span>
                                         </td>
-                                        <td className="reason-text">{item.reason}</td>
+                                        <td>
+                                            {Number(item.receiverStock) === 0 ?
+                                                <span className="status-badge critical">ZERADO</span> :
+                                                <span className="status-badge low">BAIXO ({item.receiverCov}m)</span>
+                                            }
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

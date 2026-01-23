@@ -59,7 +59,7 @@
     margin-top: 4px;
 }
 
-/* Actions Toolbar */
+/* Actions */
 .rm-actions {
     display: flex;
     justify-content: flex-end;
@@ -92,7 +92,6 @@
     flex-direction: column;
     gap: 20px;
     padding-right: 8px;
-    /* Space for scrollbar */
 }
 
 .route-group {
@@ -130,12 +129,10 @@
 
 .route-tag.local {
     background: #10b981;
-    /* Green for Same State */
 }
 
 .route-tag.inter {
     background: #f59e0b;
-    /* Orange for diff state */
 }
 
 .route-title {
@@ -156,7 +153,7 @@
     color: #4b5563;
 }
 
-/* Table inside Route */
+/* Table items */
 .transfer-table {
     width: 100%;
     border-collapse: collapse;
@@ -170,6 +167,14 @@
     color: #6b7280;
     background: #f9fafb;
     border-bottom: 1px solid #e5e7eb;
+}
+
+.transfer-table th.center {
+    text-align: center;
+}
+
+.transfer-table td.center {
+    text-align: center;
 }
 
 .transfer-table td {
@@ -195,14 +200,39 @@
     padding: 4px 12px;
     border-radius: 12px;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
 }
 
-.reason-text {
-    font-size: 0.85rem;
-    color: #ef4444;
-    /* Critical reason color */
+.stock-info {
+    font-weight: 600;
+    color: #374151;
 }
+
+.stock-info.donor {
+    color: #059669;
+    /* Greenish for donor availability */
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.status-badge.critical {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.status-badge.low {
+    background: #fef3c7;
+    color: #b45309;
+}
+
 
 /* Dark Mode Overrides */
 [data-theme="dark"] .remanejamento-container {
@@ -245,4 +275,12 @@
 [data-theme="dark"] .rm-label,
 [data-theme="dark"] .rm-sub {
     color: #9ca3af;
+}
+
+[data-theme="dark"] .stock-info {
+    color: #d1d5db;
+}
+
+[data-theme="dark"] .stock-info.donor {
+    color: #34d399;
 }

@@ -95,23 +95,7 @@ export default function App() {
       <div className="appShell">
         <aside className="sidebar">
           <div className="sidebarHeader">
-            <div className="sidebarLogo">
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 12C8 8 10 6 14 6C18 6 20 8 20 12V28C20 32 18 34 14 34C10 34 8 32 8 28V12Z" fill="#1E88E5" />
-                <path d="M20 12C20 8 22 6 26 6C30 6 32 8 32 12V28C32 32 30 34 26 34C22 34 20 32 20 28V12Z" fill="#43A047" />
-                <path d="M14 18C14 16 15 15 17 15H23C25 15 26 16 26 18V22C26 24 25 25 23 25H17C15 25 14 24 14 22V18Z" fill="url(#paint0_linear)" />
-                <defs>
-                  <linearGradient id="paint0_linear" x1="14" y1="15" x2="26" y2="25" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#1E88E5" />
-                    <stop offset="1" stopColor="#43A047" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <div className="sidebarBrand">
-              <div className="sidebarTitle">Fluxo Sinc</div>
-              <div className="sidebarSubtitle">Gestão Inteligente</div>
-            </div>
+            <img src="/logo-gestaovx.png" alt="Gestão VX" className="sidebarLogoImage" />
           </div>
           <div className="navList">
             <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise Estoque</button>

@@ -1,0 +1,286 @@
+/* Container Principal */
+.compras-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 20px;
+    height: 100%;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+    background-color: transparent;
+    /* Usa fundo do tema */
+}
+
+/* Cards de KPI */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+}
+
+.kpi-card {
+    background-color: var(--card-bg, #fff);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    /* Sombra suave */
+    display: flex;
+    flex-direction: column;
+    border-left: 5px solid transparent;
+    transition: transform 0.2s;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+}
+
+.kpi-card.blue {
+    border-left-color: #3b82f6;
+}
+
+.kpi-card.green {
+    border-left-color: #10b981;
+}
+
+.kpi-card.red {
+    border-left-color: #ef4444;
+}
+
+.kpi-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary, #6b7280);
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.kpi-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary, #111827);
+}
+
+.kpi-value.critical {
+    color: #ef4444;
+}
+
+/* Toolbar de Filtro */
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--card-bg, #fff);
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.search-input {
+    flex: 1;
+    min-width: 200px;
+    /* Garante que não esmague */
+    max-width: 400px;
+    padding: 10px 16px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    outline: none;
+    background-color: var(--input-bg, #f9fafb);
+    color: var(--text-primary, #111827);
+    transition: border-color 0.2s;
+}
+
+.filter-select {
+    min-width: 180px;
+    padding: 10px 16px;
+    border: 1px solid var(--border-color, #e5e7eb);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    outline: none;
+    background-color: var(--input-bg, #f9fafb);
+    color: var(--text-primary, #111827);
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+
+.search-input:focus,
+.filter-select:focus {
+    border-color: #3b82f6;
+    background-color: var(--card-bg, #fff);
+}
+
+.btn-export {
+    background-color: #ef4444;
+    /* Vermelho para PDF ser distinto ou azul padrão */
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+}
+
+.btn-export:hover {
+    background-color: #dc2626;
+}
+
+/* Tabela */
+.table-container {
+    flex: 1;
+    background-color: var(--card-bg, #fff);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    /* Para border-radius */
+    display: flex;
+    flex-direction: column;
+}
+
+.data-table-wrapper {
+    overflow-auto: auto;
+    flex: 1;
+}
+
+.compras-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 600px;
+}
+
+.compras-table thead {
+    background-color: var(--header-bg, #f3f4f6);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.compras-table th {
+    padding: 14px 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary, #4b5563);
+    text-align: left;
+    border-bottom: 2px solid var(--border-color, #e5e7eb);
+}
+
+.compras-table th.right {
+    text-align: right;
+}
+
+.compras-table th.center {
+    text-align: center;
+}
+
+.compras-table tbody tr {
+    border-bottom: 1px solid var(--border-color, #f3f4f6);
+    transition: background-color 0.1s;
+}
+
+.compras-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.compras-table tbody tr:hover {
+    background-color: var(--hover-bg, #f9fafb);
+}
+
+.compras-table td {
+    padding: 14px 20px;
+    font-size: 0.95rem;
+    color: var(--text-primary, #374151);
+    vertical-align: middle;
+}
+
+.compras-table td.sku {
+    font-family: 'Roboto Mono', monospace;
+    /* Se disponível, ou monospace genérico */
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.85rem;
+}
+
+.compras-table td.prod-name {
+    font-weight: 500;
+}
+
+.compras-table td.right {
+    text-align: right;
+}
+
+.compras-table td.center {
+    text-align: center;
+}
+
+.sugestao-val {
+    color: #2563eb;
+    font-weight: 700;
+}
+
+/* Badges */
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.badge.comprar {
+    background-color: #fee2e2;
+    color: #b91c1c;
+}
+
+.badge.ok {
+    background-color: #d1fae5;
+    color: #047857;
+}
+
+/* Scrollbar Bonita */
+.data-table-wrapper::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+
+.data-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}
+
+/* Dark Mode Suporte (básico, assumindo que vars são trocadas no pai) */
+[data-theme="dark"] .kpi-card,
+[data-theme="dark"] .toolbar,
+[data-theme="dark"] .table-container {
+    background-color: #1f2937;
+    color: #f3f4f6;
+}
+
+[data-theme="dark"] .search-input {
+    background-color: #374151;
+    border-color: #4b5563;
+    color: #f3f4f6;
+}
+
+[data-theme="dark"] .compras-table thead {
+    background-color: #111827;
+}
+
+[data-theme="dark"] .compras-table tbody tr:hover {
+    background-color: #374151;
+}

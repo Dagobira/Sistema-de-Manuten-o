@@ -1,0 +1,26 @@
+[
+    {
+        "id": 1,
+        "name": "Administrador",
+        "email": "ramon@admin.com",
+        "password": "admin123",
+        "role": "admin",
+        "permissions": [
+            "dashboard",
+            "qualidade",
+            "logistica",
+            "compras",
+            "admin"
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Usuário Teste",
+        "email": "user@teste.com",
+        "password": "user",
+        "role": "user",
+        "permissions": [
+            "compras"
+        ]
+    }
+]

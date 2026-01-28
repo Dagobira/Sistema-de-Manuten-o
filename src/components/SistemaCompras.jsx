@@ -190,7 +190,9 @@ export default function SistemaCompras() {
             }
         });
 
-        doc.save('sugestao_compras.pdf');
+        // Abre o PDF em nova janela com diálogo de impressão
+        doc.autoPrint();
+        window.open(doc.output('bloburl'), '_blank');
     };
 
     if (loading) return <div className="compras-container"><div className="loading">Carregando dados...</div></div>;

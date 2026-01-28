@@ -6,14 +6,14 @@ function findValue(row, candidates) {
   const keys = Object.keys(row);
   for (const candidate of candidates) {
     if (row[candidate] !== undefined) return row[candidate];
-    
+
     // Normalização para ignorar acentos, maiúsculas e espaços extras
     const normalize = (s) => String(s).trim().toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
       .replace(/[\.\-\_]/g, ""); // Remove pontos, traços e underlines
-      
+
     const target = normalize(candidate);
-    
+
     const foundKey = keys.find(k => normalize(k) === target);
     if (foundKey) return row[foundKey];
   }
@@ -26,9 +26,9 @@ function parseNumber(val) {
   let s = String(val).trim();
   s = s.replace("R$", "").trim();
   if (s.includes(',') && s.includes('.')) {
-     s = s.replace(/\./g, '').replace(',', '.'); 
+    s = s.replace(/\./g, '').replace(',', '.');
   } else if (s.includes(',')) {
-     s = s.replace(',', '.');
+    s = s.replace(',', '.');
   }
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
@@ -83,16 +83,16 @@ export function buildLojasMap(csvData) {
   csvData.forEach(row => {
     // Busca inteligente pelo Nome do Sistema
     const chave = findValue(row, ["Nome_Sistema", "Nome Sistema", "Laboratorio"]);
-    
+
     if (!chave) return; // Se não achar o nome, pula
 
     map.set(chave, {
       id: findValue(row, ["ID_Loja", "ID"]),
-      nomeFantasia: findValue(row, ["Nome_Fantasia", "Nome Fantasia", "Loja"]), 
+      nomeFantasia: findValue(row, ["Nome_Fantasia", "Nome Fantasia", "Loja"]),
       uf: findValue(row, ["UF", "Estado"]),
       cidade: findValue(row, ["Cidade"]),
       // Aqui estava o problema: Agora ele busca todas as variações possíveis
-      diasAtendimento: findValue(row, ["Dias_Atenidmento", "Dias_Atendimento", "Dias Atendimento", "Dia"]), 
+      diasAtendimento: findValue(row, ["Dias_Atenidmento", "Dias_Atendimento", "Dias Atendimento", "Dia"]),
       tempoEntrega: parseNumber(findValue(row, ["Tempo_de_Entrega", "Tempo Entrega", "Prazo"]))
     });
   });
@@ -120,7 +120,7 @@ export function buildTecnicosMap(csvData) {
 
 export function normalizeMovRows(csvData) {
   return csvData.map((row) => {
-    let mes = findValue(row, ["Mes", "Mês", "Periodo", "Data"]);
+    let mes = findValue(row, ["Mes", "Mês", "Periodo", "Data", "AnoMes"]);
     if (!mes) {
       const values = Object.values(row);
       for (const v of values) {
@@ -131,7 +131,7 @@ export function normalizeMovRows(csvData) {
       }
     }
     const vendas = parseNumber(findValue(row, ["PecasVendidas", "Vendas", "Venda"])) || 0;
-    
+
     const danificado = parseNumber(findValue(row, ["Danificado"])) || 0;
     const defeito = parseNumber(findValue(row, ["Defeito"])) || 0;
     const erro = parseNumber(findValue(row, ["ErroOperacional"])) || 0;
@@ -141,14 +141,14 @@ export function normalizeMovRows(csvData) {
     const naoOrcado = parseNumber(findValue(row, ["NaoOrcado"])) || 0;
     const servicoDesfeito = parseNumber(findValue(row, ["ServicoDesfeito"])) || 0;
     const usoInterno = parseNumber(findValue(row, ["UsoInterno", "Consumo"])) || 0;
-    
+
     const outrasSaidas = danificado + defeito + erro + excecao + excecaoDiamante + garantia + naoOrcado + servicoDesfeito + usoInterno;
     const labName = findValue(row, ["Laboratorio", "Lab"]) || "Desconhecido";
 
     return {
       Laboratorio: labName,
       SKU: String(findValue(row, ["SKU", "Codigo"]) || ""),
-      Mes: mes || "", 
+      Mes: mes || "",
       Vendas: vendas,
       OutrasSaidas: outrasSaidas,
       TotalConsumido: vendas + outrasSaidas
@@ -158,20 +158,20 @@ export function normalizeMovRows(csvData) {
 
 export function normalizeDefectRows(csvData, lojasMap) {
   return csvData.map(row => {
-     const labRaw = findValue(row, ["Laboratório", "Laboratorio", "Laboratorio "]);
-     const lojaConfig = lojasMap.get(labRaw);
+    const labRaw = findValue(row, ["Laboratório", "Laboratorio", "Laboratorio "]);
+    const lojaConfig = lojasMap.get(labRaw);
 
-     return {
-         Data: findValue(row, ["Data"]),
-         Motivo: findValue(row, ["Outras Saidas", "Motivo"]),
-         LaboratorioRaw: labRaw,
-         Laboratorio: lojaConfig ? lojaConfig.nomeFantasia : labRaw, 
-         UF: lojaConfig ? lojaConfig.uf : "N/A",
-         Tecnico: findValue(row, ["Tecnico", "Técnico"]),
-         SKU: String(findValue(row, ["SKU"])),
-         Qtd: parseNumber(findValue(row, ["Qtd", "Quantidade"])),
-         Obs: findValue(row, ["Observações", "Observacoes", "Obs"])
-     };
+    return {
+      Data: findValue(row, ["Data"]),
+      Motivo: findValue(row, ["Outras Saidas", "Motivo"]),
+      LaboratorioRaw: labRaw,
+      Laboratorio: lojaConfig ? lojaConfig.nomeFantasia : labRaw,
+      UF: lojaConfig ? lojaConfig.uf : "N/A",
+      Tecnico: findValue(row, ["Tecnico", "Técnico"]),
+      SKU: String(findValue(row, ["SKU"])),
+      Qtd: parseNumber(findValue(row, ["Qtd", "Quantidade"])),
+      Obs: findValue(row, ["Observações", "Observacoes", "Obs"])
+    };
   });
 }
 
@@ -186,7 +186,7 @@ export function buildLabOptions(movRows) {
 
 export function buildMonthOptions(movRows) {
   const s = new Set(
-    movRows.map((r) => r.Mes).filter(m => m && m.length >= 7) 
+    movRows.map((r) => r.Mes).filter(m => m && m.length >= 7)
   );
   return Array.from(s).sort();
 }
@@ -198,7 +198,7 @@ export function parseSkuInput(text) {
 
 export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, filters, params }) {
   const { mesInicio, mesFim, labs, categorias, skuList } = filters;
-  
+
   const filteredMovs = movRows.filter(r => {
     if (!r.Mes) return false;
     if (mesInicio && r.Mes < mesInicio) return false;
@@ -208,7 +208,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
     return true;
   });
 
-  const groupMap = new Map(); 
+  const groupMap = new Map();
   filteredMovs.forEach(r => {
     const key = `${r.Laboratorio}__${r.SKU}`;
     if (!groupMap.has(key)) {
@@ -238,8 +238,8 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
         const d1 = new Date(mesInicio + "-01");
         const d2 = new Date(mesFim + "-01");
         if (!isNaN(d1) && !isNaN(d2)) {
-            mesesCount = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1;
-            if (mesesCount < 1) mesesCount = 1;
+          mesesCount = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth()) + 1;
+          if (mesesCount < 1) mesesCount = 1;
         }
       }
 
@@ -252,47 +252,47 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
       let alvo = 0;
 
       if (stats.total === 0) {
-          if (mesesCount >= params.regra12m) {
-              alvo = 0;
-              status = "Sem Giro 12m";
-              devolver = estLab; 
-          } else if (mesesCount >= params.regra6m) {
-              alvo = 1;
-              status = "Sem Giro 6m";
-              if (estLab > 1) {
-                  devolver = estLab - 1;
-              } else if (estLab === 0) {
-                  devolver = 0; 
-              }
-          } else {
-             alvo = estLab; 
+        if (mesesCount >= params.regra12m) {
+          alvo = 0;
+          status = "Sem Giro 12m";
+          devolver = estLab;
+        } else if (mesesCount >= params.regra6m) {
+          alvo = 1;
+          status = "Sem Giro 6m";
+          if (estLab > 1) {
+            devolver = estLab - 1;
+          } else if (estLab === 0) {
+            devolver = 0;
           }
-      } 
+        } else {
+          alvo = estLab;
+        }
+      }
       else {
-          const metaMatematica = mediaMensal * params.coberturaAlvoMeses;
-          alvo = Math.max(metaMatematica, 3);
-          
-          const falta = alvo - estLab;
+        const metaMatematica = mediaMensal * params.coberturaAlvoMeses;
+        alvo = Math.max(metaMatematica, 3);
 
-          if (falta > 0) {
-              if (falta >= params.transferenciaMinima || estLab === 0) { 
-                  sugestao = Math.ceil(falta);
-                  status = "Reposição";
-              }
-          } else if (estLab > alvo) {
-              const excesso = Math.floor(estLab - alvo);
-              if (excesso > 0) {
-                  devolver = excesso;
-                  status = "Remanejar";
-              }
+        const falta = alvo - estLab;
+
+        if (falta > 0) {
+          if (falta >= params.transferenciaMinima || estLab === 0) {
+            sugestao = Math.ceil(falta);
+            status = "Reposição";
           }
+        } else if (estLab > alvo) {
+          const excesso = Math.floor(estLab - alvo);
+          if (excesso > 0) {
+            devolver = excesso;
+            status = "Remanejar";
+          }
+        }
       }
 
       if (devolver > estLab) devolver = estLab;
       if (devolver < 0) devolver = 0;
 
       results.push({
-        id: key, 
+        id: key,
         Laboratorio: labName,
         SKU: sku,
         Descricao: prodData.descricao,
@@ -309,7 +309,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
         Remanejamento: devolver,
         SugestaoIA: sugestao,
         ReposicaoSugeridaBruta: sugestao,
-        DevolverSugerido: devolver, 
+        DevolverSugerido: devolver,
         Status: status
       });
     });

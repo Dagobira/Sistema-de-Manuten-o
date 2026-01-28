@@ -9,7 +9,9 @@ import TopLists from "./components/TopLists";
 import QualityDashboard from "./components/QualityDashboard";
 import LogisticsDashboard from "./components/LogisticsDashboard";
 import SistemaCompras from "./components/SistemaCompras";
-import Remanejamento from "./components/Remanejamento"; // [NOVO]
+import Remanejamento from "./components/Remanejamento";
+import KPIDashboard from "./components/KPIDashboard"; // [NOVO]
+
 
 import { loadCSV } from "./lib/csv";
 import {
@@ -103,6 +105,7 @@ export default function App() {
             <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Logística</button>
             <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras</button>
             <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento</button>
+            <button className={`navItem ${view === "bi" ? "navItemActive" : ""}`} onClick={() => setView("bi")}>💎 BI Performance</button>
           </div>
           <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
         </aside>
@@ -128,6 +131,7 @@ export default function App() {
               {view === "logistica" && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
               {view === "compras" && <SistemaCompras />}
               {view === "remanejamento" && <Remanejamento />}
+              {view === "bi" && <KPIDashboard />}
             </>
           )}
         </main>

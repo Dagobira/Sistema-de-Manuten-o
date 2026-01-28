@@ -160,28 +160,28 @@ export default function SistemaCompras() {
                     const metaMatriz = vendaBase * 1.2;
 
                     // 4. CÁLCULO DE BACKORDER (Necessidade Represada das Lojas)
-                    // Para cada laboratório, verificamos se está abaixo da meta e somamos a necessidade
+                    // ========================================
+                    // CORRIGIDO: Agora calculamos a necessidade REAL de cada laboratório
+                    // baseado no estoque atual versus a meta de 1 mês de consumo
+                    // ========================================
                     let totalNecessidadeLojas = 0;
+
+                    // Primeiro, contar quantos labs existem para este SKU
+                    const labsComEstoque = labStockRows.filter(r => String(r.SKU).trim() === sku);
+                    const numLabs = labsComEstoque.length || 17; // Se não houver labs, assume 17
+
+                    // Meta para cada lab: 1 mês de consumo da rede / número de labs
+                    // Isso distribui o consumo mensal igualmente entre os laboratórios
+                    const metaPorLab = vendaBase / numLabs;
 
                     labStockRows.forEach(labStock => {
                         if (String(labStock.SKU).trim() !== sku) return;
 
-                        const lab = String(labStock.Laboratorio).trim();
                         const estoqueAtualLab = toNumber(labStock.QtdEstoque);
 
-                        // Consumo médio deste lab para este SKU (calculamos proporção)
-                        // Simplificação: assumimos distribuição proporcional ao consumo da rede
-                        // Meta: 1 mês de consumo da rede distribuído pelos labs
-                        // Para ser mais preciso, precisaríamos trackear consumo por lab individualmente
-                        const numLabs = 17; // Aproximado, idealmente seria dinâmico
-                        const consumoMedioEstimadoLab = vendaBase / numLabs;
-
-                        // Meta para este lab: 1 mês de consumo estimado
-                        const estoqueAlvoLab = consumoMedioEstimadoLab * 1.0;
-
-                        // Se estoque atual < meta, há necessidade
-                        const necessidadeLab = Math.max(0, estoqueAlvoLab - estoqueAtualLab);
-                        totalNecessidadeLojas += necessidadeLab;
+                        // Se o estoque atual do lab está abaixo da meta, há um "buraco"
+                        const buraco = Math.max(0, metaPorLab - estoqueAtualLab);
+                        totalNecessidadeLojas += buraco;
                     });
 
                     // 5. FÓRMULA FINAL DE COMPRA (Pull System com Estoque Dedicado):
@@ -204,6 +204,19 @@ export default function SistemaCompras() {
                     const estoqueMatrizEfetivo = estoqueMatriz + qtdEmTransito;
                     let sugestao = Math.ceil((metaMatriz + totalNecessidadeLojas) - estoqueMatrizEfetivo);
                     if (sugestao < 0) sugestao = 0;
+
+                    // DEBUG para SKU 24113
+                    if (sku === '24113') {
+                        console.log('=== DEBUG SKU 24113 ===');
+                        console.log('Consumo Base (vendaBase):', vendaBase.toFixed(2));
+                        console.log('Meta Segurança Matriz (1.2x):', metaMatriz.toFixed(2));
+                        console.log('Total Necessidade Lojas (Buraco):', totalNecessidadeLojas.toFixed(2));
+                        console.log('Estoque Matriz Atual:', estoqueMatriz);
+                        console.log('Em Trânsito:', qtdEmTransito);
+                        console.log('Estoque Efetivo (Matriz + Trânsito):', estoqueMatrizEfetivo);
+                        console.log('CÁLCULO: (' + metaMatriz.toFixed(2) + ' + ' + totalNecessidadeLojas.toFixed(2) + ') - ' + estoqueMatrizEfetivo + ' = ' + sugestao);
+                        console.log('=======================');
+                    }
 
                     // Alerta de saturação global
                     const estoqueTotal = estoqueMatriz + estoqueLabsTotal;
@@ -315,25 +328,27 @@ export default function SistemaCompras() {
             r.vendaBase.toFixed(1),
             r.estoqueMatriz,
             r.emTransito,
+            r.totalNecessidadeLojas.toFixed(1),
             r.sugestao,
             r.temSaturacao ? '⚠️' : ''
         ]);
 
         doc.autoTable({
             startY: kpiY + 5,
-            head: [['SKU', 'Produto', 'Base/Mês', 'Estoque', 'Trânsito', 'Qtd a Comprar', 'Alert']],
+            head: [['SKU', 'Produto', 'Base/Mês', 'Estoque', 'Trânsito', 'Nec.Lojas', 'Qtd Comprar', 'Alert']],
             body: tableBody,
             theme: 'striped',
             styles: { fontSize: 8 },
             headStyles: { fillColor: [220, 53, 69] },
             columnStyles: {
-                0: { cellWidth: 20 },
+                0: { cellWidth: 18 },
                 1: { cellWidth: 'auto' },
-                2: { cellWidth: 18, halign: 'right' },
-                3: { cellWidth: 18, halign: 'right' },
-                4: { cellWidth: 18, halign: 'right' },
-                5: { cellWidth: 22, halign: 'right', fontStyle: 'bold', textColor: [220, 53, 69] },
-                6: { cellWidth: 12, halign: 'center' }
+                2: { cellWidth: 16, halign: 'right' },
+                3: { cellWidth: 16, halign: 'right' },
+                4: { cellWidth: 16, halign: 'right' },
+                5: { cellWidth: 18, halign: 'right', textColor: [220, 53, 69] },
+                6: { cellWidth: 20, halign: 'right', fontStyle: 'bold', textColor: [220, 53, 69] },
+                7: { cellWidth: 12, halign: 'center' }
             },
             didParseCell: function (data) {
                 if (data.section === 'body' && data.column.index === 3) {
@@ -406,6 +421,9 @@ export default function SistemaCompras() {
                                 <th className="right" title="Quantidade já comprada mas ainda não recebida">
                                     Em Trânsito
                                 </th>
+                                <th className="right" title="Soma de tudo que falta para os laboratórios atingirem o nível ideal (1 mês de consumo dividido entre labs)">
+                                    Nec. Lojas 🔴
+                                </th>
                                 <th className="right" title="Pull System: Sugestão = (Meta Matriz + Necessidade Lojas) - (Estoque Matriz + Em Trânsito). Considera a necessidade represada dos laboratórios.">
                                     Sugestão
                                 </th>
@@ -447,6 +465,9 @@ export default function SistemaCompras() {
                                             }}
                                         />
                                     </td>
+                                    <td className="right" style={{ color: r.totalNecessidadeLojas > 0 ? '#dc3545' : '#666', fontWeight: r.totalNecessidadeLojas > 0 ? 'bold' : 'normal' }}>
+                                        {r.totalNecessidadeLojas.toFixed(1)}
+                                    </td>
                                     <td className="right sugestao-val">{r.sugestao}</td>
                                     <td className="center">
                                         <span className={`badge ${r.status === 'Comprar' ? 'comprar' : 'ok'}`}>
@@ -469,7 +490,7 @@ export default function SistemaCompras() {
                             ))}
                             {filteredData.length === 0 && (
                                 <tr>
-                                    <td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
+                                    <td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#888' }}>
                                         Nenhum produto encontrado na busca.
                                     </td>
                                 </tr>

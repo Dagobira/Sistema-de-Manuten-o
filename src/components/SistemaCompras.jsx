@@ -85,29 +85,24 @@ export default function SistemaCompras() {
                 const allDates = movRows.map(r => r.AnoMes).filter(Boolean).sort();
                 const uniqueMonths = [...new Set(allDates)].sort().reverse();
 
-                // Últimos 3 e 6 meses
+                // Últimos 3 meses para cálculo
                 const last3Months = new Set(uniqueMonths.slice(0, 3));
-                const last6Months = new Set(uniqueMonths.slice(0, 6));
 
                 // ========================================
-                // CÁLCULO DE DEMANDA REAL (CONSUMO TOTAL DA REDE)
+                // REGRA DO PISO - NOVA LÓGICA DE ABASTECIMENTO
                 // ========================================
-                // Esta lógica calcula o CONSUMO TOTAL baseado em TODAS as saídas de estoque:
-                // - Vendas ao consumidor (PecasVendidas)
-                // - Peças usadas em Garantia
-                // - Peças com Defeito/Danificado
-                // - Outras saídas legítimas (erro operacional, exceções, etc.)
-                // O objetivo é repor TUDO que saiu da prateleira da rede, independente do motivo.
-                // NÃO incluímos transferências entre lojas (não são saídas da rede).
+                // Calcula o CONSUMO INDIVIDUAL de cada laboratório para aplicar
+                // a regra: "Se teve venda, precisa ter no mínimo 3 peças na vitrine"
+                // ========================================
 
-                const sales3Map = new Map();
-                const sales6Map = new Map();
+                // Mapa: SKU -> Laboratório -> Consumo Total (últimos 3 meses)
+                const consumoPorLabMap = new Map();
 
                 movRows.forEach(r => {
                     const sku = String(r.SKU).trim();
+                    const lab = String(r.Laboratorio).trim();
 
                     // ✅ CONSUMO TOTAL = Soma de TODAS as saídas de estoque
-                    // Cada coluna representa um tipo de saída que precisa ser reposta
                     const consumoTotal =
                         toNumber(r.PecasVendidas) +      // Vendas normais
                         toNumber(r.Danificado) +         // Produto danificado
@@ -119,15 +114,15 @@ export default function SistemaCompras() {
                         toNumber(r.NaoOrcado) +          // Não orçado
                         toNumber(r.ServicoDesfeito);     // Serviço desfeito
 
-                    // Acumula o CONSUMO TOTAL de TODOS os laboratórios para calcular demanda da rede
+                    // Acumula apenas dos últimos 3 meses, POR LABORATÓRIO
                     if (last3Months.has(r.AnoMes)) {
-                        const current = sales3Map.get(sku) || 0;
-                        sales3Map.set(sku, current + consumoTotal); // Soma consumo total da REDE
-                    }
+                        if (!consumoPorLabMap.has(sku)) {
+                            consumoPorLabMap.set(sku, new Map());
+                        }
 
-                    if (last6Months.has(r.AnoMes)) {
-                        const current = sales6Map.get(sku) || 0;
-                        sales6Map.set(sku, current + consumoTotal); // Soma consumo total da REDE
+                        const labMap = consumoPorLabMap.get(sku);
+                        const currentConsumo = labMap.get(lab) || 0;
+                        labMap.set(lab, currentConsumo + consumoTotal);
                     }
                 });
 
@@ -141,81 +136,74 @@ export default function SistemaCompras() {
                     const qtdEmTransito = emTransito[sku] || 0;
 
                     // ========================================
-                    // FÓRMULA DE COMPRAS (CONSUMO TOTAL + BACKORDER)
+                    // REGRA DO PISO - CÁLCULO DE BACKORDER POR LOJA
                     // ========================================
 
-                    // 1. Calcular médias mensais de CONSUMO TOTAL da REDE INTEIRA
-                    //    (Consumo = Vendas + Garantias + Defeitos + Outras Saídas)
-                    const totalConsumo3Meses = sales3Map.get(sku) || 0; // Soma de todos os labs
-                    const totalConsumo6Meses = sales6Map.get(sku) || 0; // Soma de todos os labs
-
-                    const media3Meses = totalConsumo3Meses / 3;
-                    const media6Meses = totalConsumo6Meses / 6;
-
-                    // 2. Lógica Híbrida: usar o MAIOR valor entre médias 3m e 6m
-                    const vendaBase = Math.max(media3Meses, media6Meses);
-                    const mediaUsada = media3Meses >= media6Meses ? '3m' : '6m';
-
-                    // 3. Meta de estoque da Matriz: Consumo Base * 1.2 (safety stock de 20%)
-                    const metaMatriz = vendaBase * 1.2;
-
-                    // 4. CÁLCULO DE BACKORDER (Necessidade Represada das Lojas)
-                    // ========================================
-                    // CORRIGIDO: Agora calculamos a necessidade REAL de cada laboratório
-                    // baseado no estoque atual versus a meta de 1 mês de consumo
-                    // ========================================
                     let totalNecessidadeLojas = 0;
+                    let totalConsumoRede = 0;
 
-                    // Primeiro, contar quantos labs existem para este SKU
-                    const labsComEstoque = labStockRows.filter(r => String(r.SKU).trim() === sku);
-                    const numLabs = labsComEstoque.length || 17; // Se não houver labs, assume 17
+                    // Pegar o mapa de consumo por lab para este SKU
+                    const labConsumoMap = consumoPorLabMap.get(sku) || new Map();
 
-                    // Meta para cada lab: 1 mês de consumo da rede / número de labs
-                    // Isso distribui o consumo mensal igualmente entre os laboratórios
-                    const metaPorLab = vendaBase / numLabs;
-
+                    // Para cada laboratório que tem estoque deste SKU
                     labStockRows.forEach(labStock => {
                         if (String(labStock.SKU).trim() !== sku) return;
 
+                        const lab = String(labStock.Laboratorio).trim();
                         const estoqueAtualLab = toNumber(labStock.QtdEstoque);
 
-                        // Se o estoque atual do lab está abaixo da meta, há um "buraco"
-                        const buraco = Math.max(0, metaPorLab - estoqueAtualLab);
-                        totalNecessidadeLojas += buraco;
+                        // Consumo deste lab nos últimos 3 meses
+                        const consumo3Meses = labConsumoMap.get(lab) || 0;
+                        const mediaMensalLab = consumo3Meses / 3;
+
+                        // 📍 REGRA DO PISO:
+                        // Se teve venda nos últimos 3 meses, meta = MAX(média mensal, 3 peças)
+                        // Se não teve venda, meta = 0 (não precisa ter estoque)
+                        let metaLab = 0;
+                        if (consumo3Meses > 0) {
+                            metaLab = Math.max(mediaMensalLab, 3);
+                        }
+
+                        // Calcular o "buraco" (backorder) deste lab
+                        const backorderLab = Math.max(0, metaLab - estoqueAtualLab);
+                        totalNecessidadeLojas += backorderLab;
+
+                        // Acumular consumo total da rede
+                        totalConsumoRede += consumo3Meses;
                     });
 
-                    // 5. FÓRMULA FINAL DE COMPRA (Pull System com Estoque Dedicado):
+                    // Média mensal de consumo da REDE INTEIRA
+                    const vendaBase = totalConsumoRede / 3;
+
+                    // Meta de Segurança da Matriz: Consumo da Rede * 1.2 (safety stock 20%)
+                    const metaMatriz = vendaBase * 1.2;
+
                     // ========================================
-                    // IMPORTANTE: Matriz e Lojas são ESTOQUES SEPARADOS (Baldes Dedicados)
-                    // - Estoque da Matriz = Pulmão dedicado para reposição e segurança
-                    // - Estoque das Lojas = Para operação diária dos labs
-                    // - NUNCA subtraímos o estoque das lojas da sugestão de compra!
-                    // - Motivo: Se lojas forem roubadas ou tiverem pico, Matriz precisa ter peça
+                    // FÓRMULA FINAL DE COMPRA
                     // ========================================
-                    //
-                    // Fórmula: Sugestão = (Meta Matriz + Necessidade Lojas) - (Estoque Matriz + Em Trânsito)
+                    // Sugestão = (Meta Segurança Matriz + TotalBackorder) - Estoque Matriz Atual
                     //
                     // Onde:
-                    // - Meta Matriz = Consumo Rede * 1.2 (pulmão da matriz para 1 mês + 20%)
-                    // - Necessidade Lojas = Soma do "buraco" de labs abaixo da meta
-                    // - Estoque Matriz = Estoque físico atual na matriz
-                    // - Em Trânsito = Já comprado mas não recebido
+                    // - Meta Segurança Matriz = Giro Total da Rede * 1.2
+                    // - TotalBackorder = Soma dos "buracos" de todas as lojas (considerando Regra do Piso)
+                    // - Estoque Matriz Atual = Estoque físico + Em Trânsito
                     //
                     const estoqueMatrizEfetivo = estoqueMatriz + qtdEmTransito;
                     let sugestao = Math.ceil((metaMatriz + totalNecessidadeLojas) - estoqueMatrizEfetivo);
                     if (sugestao < 0) sugestao = 0;
 
-                    // DEBUG para SKU 24113
+                    // 🔍 DEBUG para SKU 24113
                     if (sku === '24113') {
-                        console.log('=== DEBUG SKU 24113 ===');
-                        console.log('Consumo Base (vendaBase):', vendaBase.toFixed(2));
+                        console.log('=== DEBUG SKU 24113 (REGRA DO PISO) ===');
+                        console.log('Consumo Total Rede (3 meses):', totalConsumoRede.toFixed(2));
+                        console.log('Consumo Base/Mês (vendaBase):', vendaBase.toFixed(2));
                         console.log('Meta Segurança Matriz (1.2x):', metaMatriz.toFixed(2));
-                        console.log('Total Necessidade Lojas (Buraco):', totalNecessidadeLojas.toFixed(2));
+                        console.log('Total Necessidade Lojas (Backorder c/ Regra Piso):', totalNecessidadeLojas.toFixed(2));
                         console.log('Estoque Matriz Atual:', estoqueMatriz);
                         console.log('Em Trânsito:', qtdEmTransito);
                         console.log('Estoque Efetivo (Matriz + Trânsito):', estoqueMatrizEfetivo);
                         console.log('CÁLCULO: (' + metaMatriz.toFixed(2) + ' + ' + totalNecessidadeLojas.toFixed(2) + ') - ' + estoqueMatrizEfetivo + ' = ' + sugestao);
-                        console.log('=======================');
+                        console.log('========================================');
                     }
 
                     // Alerta de saturação global
@@ -237,7 +225,7 @@ export default function SistemaCompras() {
                         produto: info.nome,
                         categoria: info.categoria,
                         vendaBase: vendaBase,
-                        mediaUsada: mediaUsada,
+                        mediaUsada: '3m', // Agora sempre usa 3 meses
                         metaMatriz: metaMatriz,
                         estoqueMatriz: estoqueMatriz,
                         emTransito: qtdEmTransito,
@@ -310,7 +298,7 @@ export default function SistemaCompras() {
         doc.setFontSize(10);
         const dateStr = new Date().toLocaleDateString('pt-BR');
         doc.text(`Gerado em: ${dateStr}`, 14, 28);
-        doc.text('Metodologia: Pull System - Consumo Total + Backorder (Necessidade Represada dos Labs) + Safety Stock 20%', 14, 33);
+        doc.text('Metodologia: Pull System - REGRA DO PISO (Mínimo 3 peças/loja com vendas) + Safety Stock 20%', 14, 33);
 
         if (selectedCategory) {
             doc.text(`Categoria: ${selectedCategory}`, 14, 38);
@@ -414,18 +402,18 @@ export default function SistemaCompras() {
                             <tr>
                                 <th className="sku">SKU</th>
                                 <th>Produto</th>
-                                <th className="right" title="CONSUMO TOTAL da REDE (vendas + garantias + defeitos + outras saídas de TODOS os laboratórios) calculado pela média híbrida (3 ou 6 meses)">
+                                <th className="right" title="CONSUMO TOTAL da REDE (vendas + garantias + defeitos + outras saídas de TODOS os laboratórios) calculado pela média dos últimos 3 meses">
                                     Consumo Base/Mês 🏪
                                 </th>
                                 <th className="right">Estoque Matriz</th>
                                 <th className="right" title="Quantidade já comprada mas ainda não recebida">
                                     Em Trânsito
                                 </th>
-                                <th className="right" title="Soma de tudo que falta para os laboratórios atingirem o nível ideal (1 mês de consumo dividido entre labs)">
+                                <th className="right" title="Soma de tudo que falta para os laboratórios. REGRA DO PISO: Cada loja com vendas nos últimos 3 meses precisa ter no mínimo 3 peças OU sua média mensal (o que for maior).">
                                     Nec. Lojas 🔴
                                 </th>
-                                <th className="right" title="Pull System: Sugestão = (Meta Matriz + Necessidade Lojas) - (Estoque Matriz + Em Trânsito). Considera a necessidade represada dos laboratórios.">
-                                    Sugestão
+                                <th className="right" title="Pull System com REGRA DO PISO: Sugestão = (Meta Matriz 1.2x + Backorder Lojas) - Estoque Matriz. Lojas com vendas precisam ter mínimo 3 peças.">
+                                    Sugestão 🎯
                                 </th>
                                 <th className="center">Status</th>
                             </tr>
@@ -437,17 +425,6 @@ export default function SistemaCompras() {
                                     <td className="prod-name">{r.produto}</td>
                                     <td className="right">
                                         {r.vendaBase.toFixed(1)}
-                                        <span
-                                            style={{
-                                                fontSize: '0.7rem',
-                                                marginLeft: '4px',
-                                                color: '#666',
-                                                fontWeight: 'normal'
-                                            }}
-                                            title={`Calculado usando média de ${r.mediaUsada === '3m' ? '3 meses' : '6 meses'}`}
-                                        >
-                                            📊 {r.mediaUsada}
-                                        </span>
                                     </td>
                                     <td className="right">{r.estoqueMatriz}</td>
                                     <td className="right">

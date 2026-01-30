@@ -10,9 +10,10 @@ export default function Login() {
     const handleSubmit = (e) => {
         e.preventDefault();
         setError('');
-        const res = login(username, password);
-        if (!res.success) {
-            setError(res.message);
+        try {
+            login(username, password);
+        } catch (err) {
+            setError(err.message);
         }
     };
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 
-export default function Sidebar({ currentScreen, onNavigate, user }) {
+export default function Sidebar({ currentScreen, onNavigate, user, theme, toggleTheme }) {
     const { logout } = useAuth();
 
     // Helper robusto para permissões (Suporta Array e Objeto)
@@ -86,6 +86,14 @@ export default function Sidebar({ currentScreen, onNavigate, user }) {
             </div>
 
             <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <button
+                    onClick={toggleTheme}
+                    className="navItem"
+                    style={{ justifyContent: 'center', border: '1px solid var(--border2)' }}
+                >
+                    {theme === 'dark' ? '☀️ Modo Claro' : '🌙 Modo Escuro'}
+                </button>
+
                 <button className="themeToggle" onClick={logout} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
                     Sair do Sistema
                 </button>

@@ -22,10 +22,17 @@ function AppContent() {
   const [appData, setAppData] = useState({});
   const [currentScreen, setCurrentScreen] = useState('analise');
 
+  // --- 1. MODO DARK RESTAURADO ---
+  const [theme, setTheme] = useState('light');
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
   useEffect(() => {
     async function init() {
       console.log("🚀 [App] Iniciando carregamento de dados...");
       try {
+        // --- 2. CARREGAMENTO DOS DADOS (INCLUINDO STOCKMATRIZ) ---
         const [prod, mov, stock, stockMatriz, defeitos, lojas] = await Promise.all([
           loadCSV('/data/stg_produto.csv'),
           loadCSV('/data/stg_lab_mov_mensal.csv'),
@@ -41,7 +48,7 @@ function AppContent() {
 
         setAppData({
           stockRows: stock || [],
-          stockMatriz: stockMatriz || [],
+          stockMatriz: stockMatriz || [], // Garante que stockMatriz vai para o state
           defectRows: defectRows || [],
           lojasMap: lojasMap,
           movRows: mov || [],
@@ -94,6 +101,7 @@ function AppContent() {
       case 'compras': return canView('view_compras') ? <SistemaCompras /> : <Denied />;
       case 'remanejamento': return canView('view_remanejamento') ? <Remanejamento /> : <Denied />;
 
+      // --- 3. CORREÇÃO DA ROTA LOGÍSTICA ---
       case 'logistica': return canView('view_logistica') ?
         <LogisticsDashboard
           lojasMap={appData.lojasMap}
@@ -116,9 +124,16 @@ function AppContent() {
   };
 
   return (
-    <div className="page" data-theme="light">
+    // Aplicação do tema no container principal
+    <div className="page" data-theme={theme}>
       <div className="appShell">
-        <Sidebar currentScreen={currentScreen} onNavigate={setCurrentScreen} user={user} />
+        <Sidebar
+          currentScreen={currentScreen}
+          onNavigate={setCurrentScreen}
+          user={user}
+          theme={theme}
+          toggleTheme={toggleTheme}
+        />
         <main className="main">
           <Header title={currentScreen.toUpperCase()} />
           {renderScreen()}

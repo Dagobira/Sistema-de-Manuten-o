@@ -1,107 +1,80 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 
-// Criamos o Contexto (mas não precisamos exportar ele diretamente se usarmos o hook)
 const AuthContext = createContext();
 
-// --- HOOK PERSONALIZADO (A PEÇA QUE FALTAVA) ---
-export const useAuth = () => {
-    return useContext(AuthContext);
-};
+// Hook exportado para evitar erro no Login.jsx
+export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {
-    // 1. O ADMIN É A LEI. Ele sempre existe e sempre entra.
     const MASTER_USER = {
         id: 'master-001',
         username: 'admin',
-        password: '1234', // String explícita
-        name: 'Administrador Supremo',
+        password: '1234',
+        name: 'Admin Supremo',
         role: 'super_admin',
-        active: true, // Sempre ativo
-        permissions: {
-            viewDashboard: true,
-            viewAnalise: true,
-            viewCompras: true,
-            viewRemanejamento: true,
-            viewLogistica: true
-        }
+        active: true,
+        permissions: { viewDashboard: true, viewAnalise: true, viewCompras: true, viewRemanejamento: true, viewLogistica: true }
     };
 
     const [user, setUser] = useState(null);
-    const [usersList, setUsersList] = useState([]);
     const [loading, setLoading] = useState(true);
+    // Estado para forçar atualização da lista de usuários quando houver mudanças
+    const [usersTick, setUsersTick] = useState(0);
 
-    // Carrega usuários ao iniciar
     useEffect(() => {
-        loadUsers();
+        // Tenta recuperar sessão existente
+        const session = localStorage.getItem('app_session');
+        if (session) {
+            try {
+                setUser(JSON.parse(session));
+            } catch (e) { localStorage.removeItem('app_session'); }
+        }
+        setLoading(false);
     }, []);
 
-    const loadUsers = () => {
-        try {
-            const saved = localStorage.getItem('app_users');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (Array.isArray(parsed)) {
-                    setUsersList(parsed);
-                }
-            }
-        } catch (error) {
-            console.error("Erro ao carregar usuários:", error);
-            setUsersList([]);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const login = (usernameInput, passwordInput) => {
-        console.log(`Tentativa de Login: User=[${usernameInput}] Pass=[${passwordInput}]`);
+        const cleanUser = String(usernameInput || '').trim();
+        const cleanPass = String(passwordInput || '').trim();
 
-        const cleanUser = String(usernameInput).trim();
-        const cleanPass = String(passwordInput).trim();
+        console.log("🚀 [Login] Tentativa:", { user: cleanUser, pass: cleanPass });
 
-        // 1. LOGIN ADMIN
+        // 1. Check Admin
         if (cleanUser === MASTER_USER.username) {
             if (cleanPass === MASTER_USER.password) {
-                console.log("LOGIN ADMIN SUCESSO!");
+                console.log("✅ [Login] Admin autenticado!");
                 setUser(MASTER_USER);
                 localStorage.setItem('app_session', JSON.stringify(MASTER_USER));
                 return true;
-            } else {
-                console.error(`Senha admin errada.`);
-                throw new Error('Senha incorreta.');
             }
         }
 
-        // 2. LOGIN USUÁRIO COMUM
-        let currentList = [];
+        // 2. Check Users do LocalStorage
+        let users = [];
         try {
             const saved = localStorage.getItem('app_users');
-            if (saved) currentList = JSON.parse(saved);
-        } catch (e) { currentList = []; }
+            if (saved) users = JSON.parse(saved);
+        } catch (e) { users = []; }
 
-        const foundUser = currentList.find(
-            u => String(u.username).trim().toLowerCase() === cleanUser.toLowerCase()
-        );
+        const found = users.find(u => String(u.username).trim().toLowerCase() === cleanUser.toLowerCase());
 
-        if (!foundUser) {
-            console.error("Usuário não encontrado.");
+        if (!found) {
+            console.error("❌ [Login] Usuário não encontrado.");
             throw new Error('Usuário não encontrado.');
         }
 
-        if (foundUser.active === false) {
-            throw new Error('Acesso bloqueado pelo administrador.');
-        }
+        const storedPass = String(found.password || '').trim();
+        console.log("🔍 [Login] Comparando senha salva:", storedPass);
 
-        const storedPass = String(foundUser.password).trim();
-
-        console.log(`Comparando: Input=[${cleanPass}] vs Stored=[${storedPass}]`);
+        if (found.active === false) throw new Error('Conta desativada.');
 
         if (cleanPass === storedPass) {
-            console.log("LOGIN USUÁRIO SUCESSO!");
-            const sessionUser = { ...foundUser, role: 'user' };
+            console.log("✅ [Login] Usuário autenticado!");
+            const sessionUser = { ...found, role: 'user' };
             setUser(sessionUser);
             localStorage.setItem('app_session', JSON.stringify(sessionUser));
             return true;
         } else {
+            console.error("❌ [Login] Senha incorreta.");
             throw new Error('Senha incorreta.');
         }
     };
@@ -112,66 +85,44 @@ export const AuthProvider = ({ children }) => {
         window.location.href = '/';
     };
 
-    // --- GESTÃO (ADMIN) ---
-
-    const createUser = (userData) => {
-        const newUser = {
-            ...userData,
-            password: String(userData.password).trim(),
-            username: String(userData.username).trim(),
-            active: true
-        };
-        const newList = [...usersList, newUser];
-        setUsersList(newList);
-        localStorage.setItem('app_users', JSON.stringify(newList));
-        return newUser;
+    // Funções de Admin
+    const getUsers = () => {
+        try { return JSON.parse(localStorage.getItem('app_users') || '[]'); }
+        catch { return []; }
     };
 
-    const updateUser = (id, updatedData) => {
-        const newList = usersList.map(u => {
+    const createUser = (data) => {
+        const users = getUsers();
+        // Força senha como string
+        const newUser = { ...data, id: Date.now(), password: String(data.password).trim(), active: true };
+        users.push(newUser);
+        localStorage.setItem('app_users', JSON.stringify(users));
+        setUsersTick(t => t + 1); // Força render
+    };
+
+    const updateUser = (id, data) => {
+        let users = getUsers();
+        users = users.map(u => {
             if (u.id === id) {
-                let finalPass = u.password;
-                if (updatedData.password && String(updatedData.password).trim() !== "") {
-                    finalPass = String(updatedData.password).trim();
-                }
-                return { ...u, ...updatedData, password: finalPass };
+                let pass = u.password;
+                if (data.password && String(data.password).trim()) pass = String(data.password).trim();
+                return { ...u, ...data, password: pass };
             }
             return u;
         });
-        setUsersList(newList);
-        localStorage.setItem('app_users', JSON.stringify(newList));
+        localStorage.setItem('app_users', JSON.stringify(users));
+        setUsersTick(t => t + 1); // Força render
     };
 
     const deleteUser = (id) => {
-        const newList = usersList.filter(u => u.id !== id);
-        setUsersList(newList);
-        localStorage.setItem('app_users', JSON.stringify(newList));
+        let users = getUsers();
+        users = users.filter(u => u.id !== id);
+        localStorage.setItem('app_users', JSON.stringify(users));
+        setUsersTick(t => t + 1); // Força render
     };
 
-    // Recupera sessão
-    useEffect(() => {
-        const session = localStorage.getItem('app_session');
-        if (session) {
-            try {
-                setUser(JSON.parse(session));
-            } catch (e) {
-                localStorage.removeItem('app_session');
-            }
-        }
-    }, []);
-
     return (
-        <AuthContext.Provider value={{
-            user,
-            usersList,
-            loading,
-            login,
-            logout,
-            createUser,
-            updateUser,
-            deleteUser,
-            isAdmin: user?.role === 'super_admin'
-        }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, usersList: getUsers(), createUser, updateUser, deleteUser }}>
             {children}
         </AuthContext.Provider>
     );

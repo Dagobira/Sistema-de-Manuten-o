@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function UserManagement() {
-    const { users, createUser, updateUser, deleteUser, user: currentUser } = useAuth();
+    const { usersList: users, createUser, updateUser, deleteUser, user: currentUser } = useAuth();
 
     const [newUser, setNewUser] = useState({ username: '', password: '' });
     const [permissions, setPermissions] = useState(defaultPerms());

@@ -223,284 +223,320 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
     );
   }
 
-  const todayDate = new Date();
-  const daysOfWeek = ["Domingo", "Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira", "Sábado"];
-  const todayName = daysOfWeek[todayDate.getDay()];
+  // DEBUG: Verificar se dados essenciais chegaram
+  const missingProps = [];
+  if (!prodMap || prodMap.size === 0) missingProps.push("Produtos");
+  if (!movRows || movRows.length === 0) missingProps.push("Movimento");
+  if (!stockMatriz || stockMatriz.length === 0) missingProps.push("Estoque Matriz");
+  if (!stockRows || stockRows.length === 0) missingProps.push("Estoque Labs");
 
-  const superClean = (str) => {
-    return String(str || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
-  };
+  if (missingProps.length > 0) {
+    console.warn("LogisticsDashboard: Dados faltando:", missingProps);
+    return (
+      <div className="card" style={{ padding: "40px", textAlign: "center", color: "var(--textSec)" }}>
+        <div style={{ fontSize: '24px', marginBottom: '16px' }}>⌛</div>
+        <div>Processando dados de logística...</div>
+        <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.7 }}>
+          Aguardando: {missingProps.join(", ")}
+        </div>
+      </div>
+    );
+  }
+  <div className="card" style={{ padding: "40px", textAlign: "center", color: "var(--textSec)" }}>
+    <div style={{ fontSize: '24px', marginBottom: '16px' }}>⌛</div>
+    <div>Processando dados de logística...</div>
+    <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.7 }}>
+      Aguardando: {missingProps.join(", ")}
+    </div>
+  </div>
+  );
+}
 
-  const getPrevisao = (leadTime) => {
-    let daysToAdd = parseInt(leadTime) || 1;
-    let date = new Date();
-    let daysAdded = 0;
-    while (daysAdded < daysToAdd) {
-      date.setDate(date.getDate() + 1);
-      if (date.getDay() !== 0 && date.getDay() !== 6) daysAdded++;
+const todayDate = new Date();
+const daysOfWeek = ["Domingo", "Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira", "Sábado"];
+const todayName = daysOfWeek[todayDate.getDay()];
+
+const superClean = (str) => {
+  return String(str || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+};
+
+const getPrevisao = (leadTime) => {
+  let daysToAdd = parseInt(leadTime) || 1;
+  let date = new Date();
+  let daysAdded = 0;
+  while (daysAdded < daysToAdd) {
+    date.setDate(date.getDate() + 1);
+    if (date.getDay() !== 0 && date.getDay() !== 6) daysAdded++;
+  }
+  return date.toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' });
+};
+
+// --- CÁLCULO DE REPOSIÇÃO (Igual ao Compras) ---
+const calculatedStock = useMemo(() => {
+  if (!prodMap || !movRows || !stockMatriz || !stockRows) return [];
+
+  // 1. Preparar Mapas
+  const matrizMap = buildMatrizMap(stockMatriz);
+  const labSnapMap = buildLabSnapshotMap(stockRows);
+
+  // 2. Definir Período (Últimos 3 meses ou tudo)
+  const availableMonths = buildMonthOptions(movRows);
+  const mesInicio = availableMonths.length >= 3 ? availableMonths[availableMonths.length - 3] : availableMonths[0];
+  const mesFim = availableMonths[availableMonths.length - 1];
+
+  // 3. Calcular usando Engine oficial
+  console.log("LogisticsDashboard: Iniciando cálculo com...", {
+    produtos: prodMap.size,
+    movimentos: movRows.length,
+    labs: labSnapMap.size
+  });
+
+  const result = computeFelipeTable({
+    prodMap,
+    matrizMap,
+    labSnapMap,
+    movRows,
+    filters: {
+      mesInicio,
+      mesFim,
+      labs: [], // Todos
+      categorias: [],
+      skuList: []
+    },
+    params: {
+      coberturaAlvoMeses: 1,
+      regra12m: 12, // Se não vendeu em 12m, alvo = 0
+      regra6m: 6,   // Se não vendeu em 6m, alvo = 1 (se tiver estoque)
+      transferenciaMinima: 1
     }
-    return date.toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' });
-  };
+  });
 
-  // --- CÁLCULO DE REPOSIÇÃO (Igual ao Compras) ---
-  const calculatedStock = useMemo(() => {
-    if (!prodMap || !movRows || !stockMatriz || !stockRows) return [];
+  console.log("LogisticsDashboard: Cálculo finalizado. Linhas geradas:", result.rows?.length || 0);
+  return result.rows || [];
+}, [prodMap, movRows, stockMatriz, stockRows]);
 
-    // 1. Preparar Mapas
-    const matrizMap = buildMatrizMap(stockMatriz);
-    const labSnapMap = buildLabSnapshotMap(stockRows);
+const agenda = useMemo(() => {
+  const grid = { "Segunda-Feira": [], "Terça-Feira": [], "Quarta-Feira": [], "Quinta-Feira": [], "Sexta-Feira": [] };
 
-    // 2. Definir Período (Últimos 3 meses ou tudo)
-    const availableMonths = buildMonthOptions(movRows);
-    const mesInicio = availableMonths.length >= 3 ? availableMonths[availableMonths.length - 3] : availableMonths[0];
-    const mesFim = availableMonths[availableMonths.length - 1];
+  lojasMap.forEach((loja, key) => {
+    let dia = loja.diasAtendimento?.trim();
+    if (!dia) return;
 
-    // 3. Calcular usando Engine oficial
-    const result = computeFelipeTable({
-      prodMap,
-      matrizMap,
-      labSnapMap,
-      movRows,
-      filters: {
-        mesInicio,
-        mesFim,
-        labs: [], // Todos
-        categorias: [],
-        skuList: []
-      },
-      params: {
-        coberturaAlvoMeses: 1,
-        regra12m: 12, // Se não vendeu em 12m, alvo = 0
-        regra6m: 6,   // Se não vendeu em 6m, alvo = 1 (se tiver estoque)
-        transferenciaMinima: 1
+    if (dia.match(/Segunda/i)) dia = "Segunda-Feira";
+    else if (dia.match(/Terça|Terca/i)) dia = "Terça-Feira";
+    else if (dia.match(/Quarta/i)) dia = "Quarta-Feira";
+    else if (dia.match(/Quinta/i)) dia = "Quinta-Feira";
+    else if (dia.match(/Sexta/i)) dia = "Sexta-Feira";
+    else return;
+
+    const targetLabClean = superClean(key);
+    const storeItems = calculatedStock.filter(r => {
+      const rowLabClean = superClean(r.Laboratorio);
+      return rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
+    });
+
+    // --- FILTRO ATUALIZADO ---
+    const itemsToSend = storeItems
+      .filter(r => (r.Reposicao > 0 || r.Remanejamento > 0)) // Filtra Envio OU Devolução
+      .sort((a, b) => b.Reposicao - a.Reposicao);
+
+    const totalPecas = itemsToSend.reduce((acc, curr) => acc + (curr.Reposicao || 0), 0);
+    const totalDevolver = itemsToSend.reduce((acc, curr) => acc + (curr.Remanejamento || 0), 0);
+
+    if (grid[dia]) {
+      grid[dia].push({
+        ...loja,
+        labKey: key,
+        chegada: getPrevisao(loja.tempoEntrega),
+        urgent: totalPecas > 0,
+        itemsCount: totalPecas,
+        returnCount: totalDevolver, // Nova métrica de devolução
+        items: itemsToSend
+      });
+    }
+  });
+  return grid;
+}, [lojasMap, calculatedStock]);
+
+const stats = useMemo(() => {
+  let totalEnvios = 0;
+  let totalPecas = 0;
+  let lojasPendentes = 0;
+  let urgentes = 0;
+
+  Object.values(agenda).forEach(day => {
+    day.forEach(loja => {
+      totalEnvios++;
+      totalPecas += loja.itemsCount;
+      if (loja.urgent) {
+        lojasPendentes++;
+        if (loja.itemsCount > 100) urgentes++;
       }
     });
+  });
 
-    return result.rows || [];
-  }, [prodMap, movRows, stockMatriz, stockRows]);
+  const taxaUrgencia = totalEnvios > 0 ? Math.round((urgentes / totalEnvios) * 100) : 0;
+  return { totalEnvios, totalPecas, lojasPendentes, taxaUrgencia };
+}, [agenda]);
 
-  const agenda = useMemo(() => {
-    const grid = { "Segunda-Feira": [], "Terça-Feira": [], "Quarta-Feira": [], "Quinta-Feira": [], "Sexta-Feira": [] };
+const filteredAgenda = useMemo(() => {
+  if (!activeKPI) return agenda;
+  const filtered = {};
+  Object.keys(agenda).forEach(dia => {
+    if (activeKPI === 'envios') filtered[dia] = agenda[dia];
+    else if (activeKPI === 'pecas') filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 0);
+    else if (activeKPI === 'pendentes') filtered[dia] = agenda[dia].filter(loja => loja.urgent);
+    else if (activeKPI === 'urgencia') filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 100);
+  });
+  return filtered;
+}, [agenda, activeKPI]);
 
-    lojasMap.forEach((loja, key) => {
-      let dia = loja.diasAtendimento?.trim();
-      if (!dia) return;
+const handleKPIClick = (kpiType) => setActiveKPI(activeKPI === kpiType ? null : kpiType);
+const getOrderId = (loja) => {
+  const d = new Date();
+  return `REQ-${d.getDate()}${d.getMonth() + 1}-${loja.id || '00'}`;
+};
 
-      if (dia.match(/Segunda/i)) dia = "Segunda-Feira";
-      else if (dia.match(/Terça|Terca/i)) dia = "Terça-Feira";
-      else if (dia.match(/Quarta/i)) dia = "Quarta-Feira";
-      else if (dia.match(/Quinta/i)) dia = "Quinta-Feira";
-      else if (dia.match(/Sexta/i)) dia = "Sexta-Feira";
-      else return;
+const weekDays = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"];
 
-      const targetLabClean = superClean(key);
-      const storeItems = calculatedStock.filter(r => {
-        const rowLabClean = superClean(r.Laboratorio);
-        return rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
-      });
-
-      // --- FILTRO ATUALIZADO ---
-      const itemsToSend = storeItems
-        .filter(r => (r.Reposicao > 0 || r.Remanejamento > 0)) // Filtra Envio OU Devolução
-        .sort((a, b) => b.Reposicao - a.Reposicao);
-
-      const totalPecas = itemsToSend.reduce((acc, curr) => acc + (curr.Reposicao || 0), 0);
-      const totalDevolver = itemsToSend.reduce((acc, curr) => acc + (curr.Remanejamento || 0), 0);
-
-      if (grid[dia]) {
-        grid[dia].push({
-          ...loja,
-          labKey: key,
-          chegada: getPrevisao(loja.tempoEntrega),
-          urgent: totalPecas > 0,
-          itemsCount: totalPecas,
-          returnCount: totalDevolver, // Nova métrica de devolução
-          items: itemsToSend
-        });
-      }
-    });
-    return grid;
-  }, [lojasMap, calculatedStock]);
-
-  const stats = useMemo(() => {
-    let totalEnvios = 0;
-    let totalPecas = 0;
-    let lojasPendentes = 0;
-    let urgentes = 0;
-
-    Object.values(agenda).forEach(day => {
-      day.forEach(loja => {
-        totalEnvios++;
-        totalPecas += loja.itemsCount;
-        if (loja.urgent) {
-          lojasPendentes++;
-          if (loja.itemsCount > 100) urgentes++;
-        }
-      });
-    });
-
-    const taxaUrgencia = totalEnvios > 0 ? Math.round((urgentes / totalEnvios) * 100) : 0;
-    return { totalEnvios, totalPecas, lojasPendentes, taxaUrgencia };
-  }, [agenda]);
-
-  const filteredAgenda = useMemo(() => {
-    if (!activeKPI) return agenda;
-    const filtered = {};
-    Object.keys(agenda).forEach(dia => {
-      if (activeKPI === 'envios') filtered[dia] = agenda[dia];
-      else if (activeKPI === 'pecas') filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 0);
-      else if (activeKPI === 'pendentes') filtered[dia] = agenda[dia].filter(loja => loja.urgent);
-      else if (activeKPI === 'urgencia') filtered[dia] = agenda[dia].filter(loja => loja.itemsCount > 100);
-    });
-    return filtered;
-  }, [agenda, activeKPI]);
-
-  const handleKPIClick = (kpiType) => setActiveKPI(activeKPI === kpiType ? null : kpiType);
-  const getOrderId = (loja) => {
-    const d = new Date();
-    return `REQ-${d.getDate()}${d.getMonth() + 1}-${loja.id || '00'}`;
-  };
-
-  const weekDays = ["Segunda-Feira", "Terça-Feira", "Quarta-Feira", "Quinta-Feira", "Sexta-Feira"];
-
-  return (
-    <>
-      <style>{modernStyles}</style>
-      <div className="logistics-container">
-        {/* KPIS */}
-        <div className="kpi-stats-grid">
-          <div className={`stat-card ${activeKPI === 'envios' ? 'active' : ''}`} onClick={() => handleKPIClick('envios')}>
-            <div className="stat-icon blue">🚚</div>
-            <div className="stat-content"><div className="stat-label">Total Envios</div><div className="stat-value">{stats.totalEnvios}</div></div>
-          </div>
-          <div className={`stat-card ${activeKPI === 'pecas' ? 'active' : ''}`} onClick={() => handleKPIClick('pecas')}>
-            <div className="stat-icon orange">📦</div>
-            <div className="stat-content"><div className="stat-label">Peças Total</div><div className="stat-value">{stats.totalPecas}</div></div>
-          </div>
-          <div className={`stat-card ${activeKPI === 'pendentes' ? 'active' : ''}`} onClick={() => handleKPIClick('pendentes')}>
-            <div className="stat-icon green">⚡</div>
-            <div className="stat-content"><div className="stat-label">Pendentes</div><div className="stat-value">{stats.lojasPendentes}</div></div>
-          </div>
-          <div className={`stat-card ${activeKPI === 'urgencia' ? 'active' : ''}`} onClick={() => handleKPIClick('urgencia')}>
-            <div className="stat-icon red">📈</div>
-            <div className="stat-content"><div className="stat-label">Taxa Urgência</div><div className="stat-value">{stats.taxaUrgencia}%</div></div>
-          </div>
+return (
+  <>
+    <style>{modernStyles}</style>
+    <div className="logistics-container">
+      {/* KPIS */}
+      <div className="kpi-stats-grid">
+        <div className={`stat-card ${activeKPI === 'envios' ? 'active' : ''}`} onClick={() => handleKPIClick('envios')}>
+          <div className="stat-icon blue">🚚</div>
+          <div className="stat-content"><div className="stat-label">Total Envios</div><div className="stat-value">{stats.totalEnvios}</div></div>
         </div>
-
-        {/* HEADER */}
-        <div className="logistics-header">
-          <div className="header-left">
-            <div className="header-icon">🗓️</div>
-            <div className="header-title">
-              <h2>Agenda Semanal de Envios</h2>
-              <div className="header-subtitle"><span>Hoje é</span><strong>{todayName}</strong></div>
-            </div>
-          </div>
-          <div className="today-badge"><span>🎯</span>{agenda[todayName]?.length || 0} Envios Hoje</div>
+        <div className={`stat-card ${activeKPI === 'pecas' ? 'active' : ''}`} onClick={() => handleKPIClick('pecas')}>
+          <div className="stat-icon orange">📦</div>
+          <div className="stat-content"><div className="stat-label">Peças Total</div><div className="stat-value">{stats.totalPecas}</div></div>
         </div>
-
-        {/* TIMELINE */}
-        <div className="timeline-container">
-          <div className="timeline-header">
-            <div className="timeline-line"></div>
-            <div className="timeline-days">
-              {weekDays.map((dia, index) => {
-                const isToday = dia === todayName;
-                const count = filteredAgenda[dia].length;
-                return (
-                  <div key={dia} className="timeline-day">
-                    <div className={`day-indicator ${isToday ? 'today' : ''} ${count > 0 ? 'has-deliveries' : ''}`}>{index + 1}</div>
-                    <div className={`day-name ${isToday ? 'today' : ''}`}>{dia.replace("-Feira", "")}</div>
-                    {count > 0 && <div className="day-count">{count}</div>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* STORES GRID */}
-          <div className="stores-grid">
-            {weekDays.map(dia => (
-              <div key={dia} className="day-column">
-                {filteredAgenda[dia].map(loja => (
-                  <div key={loja.id} className={`store-card ${loja.urgent ? 'urgent' : ''}`} onClick={() => setSelectedLoja(loja)}>
-                    {loja.urgent && <div className="urgent-badge">!</div>}
-                    <div className="store-name">{loja.nomeFantasia}</div>
-                    <div className="store-info-row">
-                      <span className="uf-badge">{loja.uf}</span>
-                      <span className={`pieces-count ${loja.urgent ? 'urgent' : 'ok'}`}>{loja.urgent ? `${loja.itemsCount} pçs` : 'OK'}</span>
-                    </div>
-                    {loja.returnCount > 0 && <div style={{ fontSize: '11px', color: '#E65100', marginTop: '4px' }}>🔙 Devolver {loja.returnCount} itens</div>}
-                    <div className="arrival-info">⏱️ Chega {loja.chegada}</div>
-                  </div>
-                ))}
-                {agenda[dia].length === 0 && <div className="empty-day">📭<br />Sem envios</div>}
-              </div>
-            ))}
-          </div>
+        <div className={`stat-card ${activeKPI === 'pendentes' ? 'active' : ''}`} onClick={() => handleKPIClick('pendentes')}>
+          <div className="stat-icon green">⚡</div>
+          <div className="stat-content"><div className="stat-label">Pendentes</div><div className="stat-value">{stats.lojasPendentes}</div></div>
+        </div>
+        <div className={`stat-card ${activeKPI === 'urgencia' ? 'active' : ''}`} onClick={() => handleKPIClick('urgencia')}>
+          <div className="stat-icon red">📈</div>
+          <div className="stat-content"><div className="stat-label">Taxa Urgência</div><div className="stat-value">{stats.taxaUrgencia}%</div></div>
         </div>
       </div>
 
-      {/* MODAL */}
-      {selectedLoja && (
-        <div className="modal-overlay" onClick={() => setSelectedLoja(null)}>
-          <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <div className="invoice-header">
-              <div className="brand-section">
-                <span className="doc-type">Ordem de Separação</span>
-                <h1 className="store-name-modal">{selectedLoja.nomeFantasia}</h1>
-                <span className="store-meta">Destino: {selectedLoja.uf} • Logística</span>
-              </div>
-              <div className="details-grid">
-                <div className="detail-group"><span className="detail-label">ID Pedido</span><span className="detail-value">{getOrderId(selectedLoja)}</span></div>
-                <div className="detail-group"><span className="detail-label">Previsão</span><span className="detail-value">{selectedLoja.chegada}</span></div>
-              </div>
-            </div>
-
-            <div className="modal-body">
-              {selectedLoja.items && selectedLoja.items.length > 0 ? (
-                <table className="order-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: "15%" }}>SKU</th>
-                      <th style={{ width: "40%" }}>Produto</th>
-                      <th style={{ width: "15%" }}>Categoria</th>
-                      <th style={{ width: "15%", textAlign: "center" }}>Enviar</th>
-                      <th style={{ width: "15%", textAlign: "center" }}>Devolver</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedLoja.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td><span className="sku-badge">{item.SKU}</span></td>
-                        <td style={{ fontWeight: "500" }}>{item.Descricao}</td>
-                        <td style={{ color: "var(--textSec)", fontSize: "12px" }}>{item.Categoria}</td>
-                        <td style={{ textAlign: "center" }}>
-                          {item.Reposicao > 0 ? <span className="qty-badge">{item.Reposicao}</span> : '-'}
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          {item.Remanejamento > 0 ? <span className="qty-badge reman">{item.Remanejamento}</span> : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-state-icon">✅</div>
-                  <div className="empty-state-title">Estoque Regularizado</div>
-                  <p className="empty-state-text">Esta loja não precisa de reposição hoje.</p>
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setSelectedLoja(null)}>Fechar</button>
-              <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Imprimir Ordem</button>
-            </div>
+      {/* HEADER */}
+      <div className="logistics-header">
+        <div className="header-left">
+          <div className="header-icon">🗓️</div>
+          <div className="header-title">
+            <h2>Agenda Semanal de Envios</h2>
+            <div className="header-subtitle"><span>Hoje é</span><strong>{todayName}</strong></div>
           </div>
         </div>
-      )}
-    </>
-  );
+        <div className="today-badge"><span>🎯</span>{agenda[todayName]?.length || 0} Envios Hoje</div>
+      </div>
+
+      {/* TIMELINE */}
+      <div className="timeline-container">
+        <div className="timeline-header">
+          <div className="timeline-line"></div>
+          <div className="timeline-days">
+            {weekDays.map((dia, index) => {
+              const isToday = dia === todayName;
+              const count = filteredAgenda[dia].length;
+              return (
+                <div key={dia} className="timeline-day">
+                  <div className={`day-indicator ${isToday ? 'today' : ''} ${count > 0 ? 'has-deliveries' : ''}`}>{index + 1}</div>
+                  <div className={`day-name ${isToday ? 'today' : ''}`}>{dia.replace("-Feira", "")}</div>
+                  {count > 0 && <div className="day-count">{count}</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* STORES GRID */}
+        <div className="stores-grid">
+          {weekDays.map(dia => (
+            <div key={dia} className="day-column">
+              {filteredAgenda[dia].map(loja => (
+                <div key={loja.id} className={`store-card ${loja.urgent ? 'urgent' : ''}`} onClick={() => setSelectedLoja(loja)}>
+                  {loja.urgent && <div className="urgent-badge">!</div>}
+                  <div className="store-name">{loja.nomeFantasia}</div>
+                  <div className="store-info-row">
+                    <span className="uf-badge">{loja.uf}</span>
+                    <span className={`pieces-count ${loja.urgent ? 'urgent' : 'ok'}`}>{loja.urgent ? `${loja.itemsCount} pçs` : 'OK'}</span>
+                  </div>
+                  {loja.returnCount > 0 && <div style={{ fontSize: '11px', color: '#E65100', marginTop: '4px' }}>🔙 Devolver {loja.returnCount} itens</div>}
+                  <div className="arrival-info">⏱️ Chega {loja.chegada}</div>
+                </div>
+              ))}
+              {agenda[dia].length === 0 && <div className="empty-day">📭<br />Sem envios</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    {/* MODAL */}
+    {selectedLoja && (
+      <div className="modal-overlay" onClick={() => setSelectedLoja(null)}>
+        <div className="modal-content" onClick={e => e.stopPropagation()}>
+          <div className="invoice-header">
+            <div className="brand-section">
+              <span className="doc-type">Ordem de Separação</span>
+              <h1 className="store-name-modal">{selectedLoja.nomeFantasia}</h1>
+              <span className="store-meta">Destino: {selectedLoja.uf} • Logística</span>
+            </div>
+            <div className="details-grid">
+              <div className="detail-group"><span className="detail-label">ID Pedido</span><span className="detail-value">{getOrderId(selectedLoja)}</span></div>
+              <div className="detail-group"><span className="detail-label">Previsão</span><span className="detail-value">{selectedLoja.chegada}</span></div>
+            </div>
+          </div>
+
+          <div className="modal-body">
+            {selectedLoja.items && selectedLoja.items.length > 0 ? (
+              <table className="order-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "15%" }}>SKU</th>
+                    <th style={{ width: "40%" }}>Produto</th>
+                    <th style={{ width: "15%" }}>Categoria</th>
+                    <th style={{ width: "15%", textAlign: "center" }}>Enviar</th>
+                    <th style={{ width: "15%", textAlign: "center" }}>Devolver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selectedLoja.items.map((item, idx) => (
+                    <tr key={idx}>
+                      <td><span className="sku-badge">{item.SKU}</span></td>
+                      <td style={{ fontWeight: "500" }}>{item.Descricao}</td>
+                      <td style={{ color: "var(--textSec)", fontSize: "12px" }}>{item.Categoria}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {item.Reposicao > 0 ? <span className="qty-badge">{item.Reposicao}</span> : '-'}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        {item.Remanejamento > 0 ? <span className="qty-badge reman">{item.Remanejamento}</span> : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="empty-state">
+                <div className="empty-state-icon">✅</div>
+                <div className="empty-state-title">Estoque Regularizado</div>
+                <p className="empty-state-text">Esta loja não precisa de reposição hoje.</p>
+              </div>
+            )}
+          </div>
+
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={() => setSelectedLoja(null)}>Fechar</button>
+            <button className="btn btn-primary" onClick={() => window.print()}>🖨️ Imprimir Ordem</button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }

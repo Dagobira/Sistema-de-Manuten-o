@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { loadCSV } from './lib/csv';
-import { buildLojasMap, normalizeDefectRows, buildProductMap } from './lib/engine'; // Added imports
+import { buildLojasMap, normalizeDefectRows, buildProductMap } from './lib/engine';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -12,21 +12,20 @@ import SistemaCompras from './components/SistemaCompras';
 import SistemaAnalise from './components/SistemaAnalise';
 import Remanejamento from './components/Remanejamento';
 import LogisticsDashboard from './components/LogisticsDashboard';
-import QualityDashboard from './components/QualityDashboard'; // Added import
+import QualityDashboard from './components/QualityDashboard';
 
-import './App.css'; // Restore CSS
+import './App.css';
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [dataLoading, setDataLoading] = useState(true);
   const [appData, setAppData] = useState({});
-  const [currentScreen, setCurrentScreen] = useState('analise'); // Default meaningful screen
+  const [currentScreen, setCurrentScreen] = useState('analise');
 
   useEffect(() => {
     async function init() {
       console.log("🚀 [App] Iniciando carregamento de dados...");
       try {
-        // Updated to load ALL required CSVs
         const [prod, mov, stock, stockMatriz, defeitos, lojas] = await Promise.all([
           loadCSV('/data/stg_produto.csv'),
           loadCSV('/data/stg_lab_mov_mensal.csv'),
@@ -42,7 +41,6 @@ function AppContent() {
 
         setAppData({
           stockRows: stock || [],
-          loadingStockMatriz: stockMatriz || [],
           stockMatriz: stockMatriz || [],
           defectRows: defectRows || [],
           lojasMap: lojasMap,
@@ -50,7 +48,7 @@ function AppContent() {
           prodRows: prod || [],
           prodMap: prodMap
         });
-        console.log("✅ [App] Dados carregados!");
+        console.log("✅ [App] Dados carregados! Matriz Size:", stockMatriz?.length);
       } catch (e) {
         console.error("❌ [App] Erro fatal:", e);
       } finally {
@@ -60,12 +58,10 @@ function AppContent() {
     init();
   }, []);
 
-  // Reset screen on login/user change to avoid stuck state from previous user
   useEffect(() => {
     if (user) setCurrentScreen('analise');
   }, [user?.uid]);
 
-  // 1. TELA DE CARREGAMENTO GLOBAL
   if (authLoading || dataLoading) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>
@@ -76,22 +72,13 @@ function AppContent() {
     );
   }
 
-  // 2. TELA DE LOGIN
-  if (!user) {
-    return <Login />;
-  }
+  if (!user) return <Login />;
 
-  // 3. ROTEAMENTO SEGURO
   const canView = (perm) => {
     if (user.role === 'super_admin') return true;
-    // Map Perm Keys if needed
     const map = { 'viewDashboard': 'view_bi' };
     const strictKey = map[perm] || perm;
-
-    // Handle both array and object permissions
-    if (Array.isArray(user.permissions)) {
-      return user.permissions.includes(strictKey);
-    }
+    if (Array.isArray(user.permissions)) return user.permissions.includes(strictKey);
     return user.permissions?.[perm];
   };
 
@@ -142,11 +129,7 @@ function AppContent() {
 }
 
 const Denied = () => (
-  <div style={{
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    height: '100%', color: '#EF4444', background: '#FEF2F2',
-    borderRadius: '16px', border: '2px dashed #EF4444'
-  }}>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#EF4444', background: '#FEF2F2', borderRadius: '16px', border: '2px dashed #EF4444' }}>
     <div style={{ fontSize: '4rem', marginBottom: '10px' }}>⛔</div>
     <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Acesso Negado</h2>
   </div>

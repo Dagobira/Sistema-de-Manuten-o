@@ -272,17 +272,15 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
     const labSnapMap = buildLabSnapshotMap(stockRows);
 
     // 2. Definir Período (Últimos 3 meses ou tudo)
-    // CORREÇÃO: Usar TODO o histórico disponível para alinhar com a tela de Análise
-    // Antes estava pegando apenas os ultimos 3 meses, o que zerava a média de itens de baixo giro.
+    // CORREÇÃO: Usar TODO o histórico disponível
     const availableMonths = buildMonthOptions(movRows);
     const mesInicio = availableMonths[0];
     const mesFim = availableMonths[availableMonths.length - 1];
 
-    // 3. Calcular usando Engine oficial
-    console.log("LogisticsDashboard: Iniciando cálculo com...", {
-      produtos: prodMap.size,
-      movimentos: movRows.length,
-      labs: labSnapMap.size
+    console.log("DEBUG LOGISTICA - STEP 1 (DATA)", {
+      mesInicio, mesFim,
+      matrizTotal: stockMatriz.length,
+      lojasTotal: lojasMap.size
     });
 
     const result = computeFelipeTable({
@@ -301,32 +299,48 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
         coberturaAlvoMeses: 3, // ALINHADO COM ANALISE (era 1)
         regra12m: 12, // Se não vendeu em 12m, alvo = 0
         regra6m: 6,   // Se não vendeu em 6m, alvo = 1 (se tiver estoque)
-        transferenciaMinima: 2 // ALINHADO COM ANALISE (era 1)
+        transferenciaMinima: 1 // SENSIBILIDADE MÁXIMA PARA DEBUG
       }
     });
 
-    console.log("LogisticsDashboard: Cálculo finalizado. Linhas geradas:", result.rows?.length || 0);
+    console.log("DEBUG LOGISTICA - STEP 2 (RESULTADO ENGINE):", {
+      totalRows: result.rows?.length,
+      exemplosZerados: result.rows?.filter(r => r.Reposicao === 0).length,
+      exemplosReposicao: result.rows?.filter(r => r.Reposicao > 0).length
+    });
+
     return result.rows || [];
   }, [prodMap, movRows, stockMatriz, stockRows]);
 
   const agenda = useMemo(() => {
     const grid = { "Segunda-Feira": [], "Terça-Feira": [], "Quarta-Feira": [], "Quinta-Feira": [], "Sexta-Feira": [] };
 
+    console.log("DEBUG LOGISTICA - STEP 3 (MATCHING LOJAS)");
+
     lojasMap.forEach((loja, key) => {
       let dia = loja.diasAtendimento?.trim();
-      if (!dia) return;
+
+      // CORREÇÃO: Forçar dia padrão se estiver vazio para DEBUG
+      if (!dia) {
+        console.log(`Loja sem dia definido: ${loja.nomeFantasia} -> Movendo para Segunda`);
+        dia = "Segunda-Feira";
+      }
 
       if (dia.match(/Segunda/i)) dia = "Segunda-Feira";
       else if (dia.match(/Terça|Terca/i)) dia = "Terça-Feira";
       else if (dia.match(/Quarta/i)) dia = "Quarta-Feira";
       else if (dia.match(/Quinta/i)) dia = "Quinta-Feira";
       else if (dia.match(/Sexta/i)) dia = "Sexta-Feira";
-      else return;
+      else {
+        console.warn(`Dia desconhecido para ${loja.nomeFantasia}: ${dia} -> Movendo para Segunda`);
+        dia = "Segunda-Feira";
+      }
 
       const targetLabClean = superClean(key);
       const storeItems = calculatedStock.filter(r => {
         const rowLabClean = superClean(r.Laboratorio);
-        return rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
+        // MATCH MAIS PERMISSIVO POSSÍVEL
+        return rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
       });
 
       // --- FILTRO ATUALIZADO ---
@@ -336,6 +350,15 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
 
       const totalPecas = itemsToSend.reduce((acc, curr) => acc + (curr.Reposicao || 0), 0);
       const totalDevolver = itemsToSend.reduce((acc, curr) => acc + (curr.Remanejamento || 0), 0);
+
+      // DEBUG: Mostrar match da loja
+      if (itemsToSend.length > 0) {
+        console.log(`✅ MATCH: ${loja.nomeFantasia} (key: ${key}) -> ${itemsToSend.length} itens. Dia: ${dia}`);
+      } else {
+        // Tentar descobrir por que deu zero
+        const totalItemsBrutos = storeItems.length;
+        console.log(`⚠️ ZERO MATCH: ${loja.nomeFantasia} (key: ${key}). Itens Brutos Encontrados: ${totalItemsBrutos}. Itens com Reposição > 0: ${itemsToSend.length}`);
+      }
 
       if (grid[dia]) {
         grid[dia].push({
@@ -504,10 +527,10 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
                 </thead>
                 <tbody>
                   {(selectedLoja.items && selectedLoja.items.length > 0 ? selectedLoja.items : calculatedStock.filter(r => {
-                    // Recalcula items para esta loja caso a lista filtrada esteja vazia (para mostrar o 'why' do zero)
+                    // FALLBACK DE SEGURANÇA SE A LISTA ESTIVER VAZIA (SÓ PARA VERIFICAR)
                     const targetLabClean = superClean(selectedLoja.labKey || Object.keys(Object.fromEntries(lojasMap)).find(k => lojasMap.get(k) === selectedLoja));
                     const rowLabClean = superClean(r.Laboratorio);
-                    return rowLabClean && targetLabClean && (rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean));
+                    return rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
                   })).sort((a, b) => b.Reposicao - a.Reposicao).map((item, idx) => (
                     <tr key={idx} style={{ opacity: item.Reposicao > 0 ? 1 : 0.6 }}>
                       <td><span className="sku-badge">{item.SKU}</span></td>

@@ -1,216 +1,199 @@
-import React, { useEffect, useMemo, useState } from "react";
-import "./App.css";
+import React, { useState, useEffect } from 'react';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { loadCSV } from './lib/csv';
+import { buildLojasMap, normalizeDefectRows, buildProductMap } from './lib/engine';
 
-import FilterPanel from "./components/FilterPanel";
-import ParamsPanel from "./components/ParamsPanel";
-import KPICards from "./components/KPICards";
-import ResultTable from "./components/ResultTable";
-import TopLists from "./components/TopLists";
-import QualityDashboard from "./components/QualityDashboard";
-import LogisticsDashboard from "./components/LogisticsDashboard";
-import SistemaCompras from "./components/SistemaCompras";
-import Remanejamento from "./components/Remanejamento";
-import KPIDashboard from "./components/KPIDashboard";
-import Login from "./components/Login";
-import UserManagement from "./components/UserManagement";
-import { AuthProvider, useAuth } from "./context/AuthContext";
+// Importação dos Componentes
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import Login from './components/Login';
+import UserManagement from './components/UserManagement';
 
-import { loadCSV } from "./lib/csv";
-import {
-  buildProductMap, buildMatrizMap, buildLabSnapshotMap, normalizeMovRows,
-  buildLabOptions, buildMonthOptions, computeFelipeTable, parseSkuInput,
-  buildLojasMap, buildTecnicosMap, normalizeDefectRows
-} from "./lib/engine";
+// Telas do Sistema
+import KPIDashboard from './components/KPIDashboard';
+import SistemaCompras from './components/SistemaCompras';
+import SistemaAnalise from './components/SistemaAnalise'; // Agora existe!
+import Remanejamento from './components/Remanejamento';
+import LogisticsDashboard from './components/LogisticsDashboard';
+import QualityDashboard from './components/QualityDashboard'; // Faltava na lista do user
 
-function MainApp() {
-  const { user, logout, hasPermission, loading: authLoading } = useAuth();
+import './App.css'; // Importante para os estilos globais
 
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState("");
-  const [view, setView] = useState("analise");
-  const [theme, setTheme] = useState("light");
+// --- COMPONENTE INTERNO (Lógica do App) ---
+function AppContent() {
+  const { user, loading: authLoading } = useAuth();
+  const [currentScreen, setCurrentScreen] = useState('analise'); // Default para primeira tela útil
 
-  const [prodMap, setProdMap] = useState(new Map());
-  const [matrizMap, setMatrizMap] = useState(new Map());
-  const [labSnapMap, setLabSnapMap] = useState(new Map());
-  const [movRows, setMovRows] = useState([]);
-  const [lojasMap, setLojasMap] = useState(new Map());
-  const [tecnicosMap, setTecnicosMap] = useState(new Map());
-  const [defectRows, setDefectRows] = useState([]);
+  // Estado dos Dados
+  const [dataLoading, setDataLoading] = useState(true);
+  const [appData, setAppData] = useState({
+    prod: [],
+    mov: [],
+    stockLab: [],
+    stockMatriz: [],
+    defectRows: [],
+    lojasMap: new Map(),
+    prodMap: new Map(), // Opcional, mas útil
+  });
 
-  const [monthOptions, setMonthOptions] = useState([]);
-  const [labOptions, setLabOptions] = useState([]);
-  const [categoryOptions, setCategoryOptions] = useState([]);
-
-  const [filters, setFilters] = useState({ mesInicio: "", mesFim: "", categorias: [], labs: [], skuText: "" });
-  const [kpiFilter, setKpiFilter] = useState(null);
-  const [params, setParams] = useState({ coberturaAlvoMeses: 3, transferenciaMinima: 2, regra6m: 6, regra12m: 12 });
-
-  // Redireciona para a primeira view permitida se a atual for proibida
+  // 1. CARREGAMENTO DE DADOS (Executa uma vez ao iniciar)
   useEffect(() => {
-    if (!user) return;
-
-    // Lista de views e suas permissões
-    const views = [
-      { id: 'analise', perm: 'view_analise' },
-      { id: 'logistica', perm: 'view_logistica' },
-      { id: 'remanejamento', perm: 'view_remanejamento' },
-      { id: 'compras', perm: 'view_compras' },
-      { id: 'bi', perm: 'view_bi' },
-      { id: 'qualidade', perm: 'view_qualidade' },
-      { id: 'users', perm: 'super_admin' } // Special case
-    ];
-
-    // Se a view atual não é permitida, muda pra primeira permitida
-    const currentAllowed = view === 'users' ? user.role === 'super_admin' : hasPermission(`view_${view}`);
-
-    if (!currentAllowed) {
-      const first = views.find(v => v.id === 'users' ? user.role === 'super_admin' : hasPermission(v.perm));
-      if (first) setView(first.id);
-    }
-  }, [user, view]); // eslint-disable-line
-
-  useEffect(() => {
-    (async () => {
+    async function loadAllData() {
       try {
-        setLoading(true); setErr("");
-        const [prod, mov, estLab, estMatriz, defeitos, tecnicos, lojas] = await Promise.all([
-          loadCSV("/data/stg_produto.csv"), loadCSV("/data/stg_lab_mov_mensal.csv"),
-          loadCSV("/data/stg_estoque_lab.csv"), loadCSV("/data/stg_estoque_matriz.csv"),
-          loadCSV("/data/stg_defeitos.csv"), loadCSV("/data/stg_tecnicos.csv"), loadCSV("/data/stg_lojas.csv")
+        console.log("Iniciando carregamento de dados...");
+        const [prod, mov, stockLab, stockMatriz, defeitos, lojas] = await Promise.all([
+          loadCSV('/data/stg_produto.csv'),
+          loadCSV('/data/stg_lab_mov_mensal.csv'),
+          loadCSV('/data/stg_estoque_lab.csv'),
+          loadCSV('/data/stg_estoque_matriz.csv'), // ADICIONADO: Necessário para analise
+          loadCSV('/data/stg_defeitos.csv'),       // ADICIONADO: Necessário para qualidade
+          loadCSV('/data/stg_lojas.csv')
         ]);
 
-        const pMap = buildProductMap(prod);
-        const movNorm = normalizeMovRows(mov);
-        const lMap = buildLojasMap(lojas);
+        console.log("Dados CSV carregados. Processando mapas...");
 
-        setProdMap(pMap);
-        setMatrizMap(buildMatrizMap(estMatriz));
-        setLabSnapMap(buildLabSnapshotMap(estLab));
-        setMovRows(movNorm);
-        setLojasMap(lMap);
-        setTecnicosMap(buildTecnicosMap(tecnicos));
-        setDefectRows(normalizeDefectRows(defeitos, lMap));
+        // Processamento básico para passar às telas
+        const lojasMap = buildLojasMap(lojas);
+        const prodMap = buildProductMap(prod); // Útil para qualidade
+        const defectRows = normalizeDefectRows(defeitos, lojasMap);
 
-        const months = buildMonthOptions(movNorm);
-        setMonthOptions(months);
-        setLabOptions(buildLabOptions(movNorm));
-        setCategoryOptions(Array.from(new Set(Array.from(pMap.values()).map((x) => x.categoria))).sort());
-        setFilters(prev => ({ ...prev, mesInicio: months[0] || "", mesFim: months[months.length - 1] || "" }));
-        setLoading(false);
-      } catch (e) { console.error(e); setErr(String(e.message)); setLoading(false); }
-    })();
+        setAppData({
+          prod,
+          mov,
+          stockLab,
+          stockMatriz,
+          lojasMap,
+          defectRows,
+          prodMap
+        });
+
+      } catch (error) {
+        console.error("Erro fatal ao carregar dados:", error);
+      } finally {
+        setDataLoading(false);
+      }
+    }
+
+    // Carrega dados independente do login para deixar pronto
+    loadAllData();
   }, []);
 
-  const computed = useMemo(() => {
-    if (!movRows.length) return { rows: [] };
-    return computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, filters: { ...filters, skuList: parseSkuInput(filters.skuText) }, params });
-  }, [prodMap, matrizMap, labSnapMap, movRows, filters, params]);
+  // 2. TELA DE CARREGAMENTO (Enquanto verifica user ou baixa CSV)
+  if (authLoading || dataLoading) {
+    return (
+      <div style={{
+        height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        background: '#f8fafc', color: '#64748b', fontFamily: 'sans-serif'
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '20px' }} className="spin">🔄</div>
+        <div style={{ fontSize: '1.2rem', fontWeight: '600' }}>Carregando Sistema...</div>
+        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }`}</style>
+      </div>
+    );
+  }
 
-  const displayedRows = useMemo(() => {
-    if (!kpiFilter) return computed.rows;
-    return computed.rows.filter(r => {
-      const st = String(r.Status || "").toLowerCase();
-      if (kpiFilter === "critico") return r.CoberturaMeses < 1 && r.EstoqueAlvo > 0;
-      if (kpiFilter === "sugerida") return r.ReposicaoSugeridaBruta > 0;
-      if (kpiFilter === "devolucao") return r.DevolverSugerido > 0;
-      if (kpiFilter === "semGiro6") return st.includes("6m");
-      if (kpiFilter === "semGiro12") return st.includes("12m");
-      return true;
-    });
-  }, [computed.rows, kpiFilter]);
-
-  if (authLoading) return <div style={{ display: 'flex', height: '100vh', fontWeight: 'bold', alignItems: 'center', justifyContent: 'center', color: '#666' }}>Carregando Sessão...</div>;
-
+  // 3. SE NÃO TIVER USUÁRIO -> TELA DE LOGIN
   if (!user) {
     return <Login />;
   }
 
+  // Helper de permissão
+  const checkPerm = (permKey) => {
+    if (user.role === 'super_admin') return true;
+
+    // Mapping camelCase to snake_case
+    const map = {
+      'viewDashboard': 'view_bi', // Mapeando Dashboard para BI se necessário
+      'viewAnalise': 'view_analise',
+      'viewLogistica': 'view_logistica',
+      'viewRemanejamento': 'view_remanejamento',
+      'viewCompras': 'view_compras',
+      'viewBi': 'view_bi',
+      'viewQualidade': 'view_qualidade'
+    };
+    const legacyKey = map[permKey] || permKey;
+
+    if (Array.isArray(user.permissions)) {
+      return user.permissions.includes(legacyKey) || user.permissions.includes(permKey);
+    }
+    return user.permissions?.[permKey];
+  };
+
+  // 4. ROTEAMENTO DE TELAS
+  const renderScreen = () => {
+    switch (currentScreen) {
+      case 'bi':
+      case 'dashboard':
+        return checkPerm('viewBi') ? <KPIDashboard /> : <AccessDenied />;
+
+      case 'analise':
+        return checkPerm('viewAnalise') ?
+          <SistemaAnalise rawData={{
+            prod: appData.prod,
+            mov: appData.mov,
+            stockLab: appData.stockLab,
+            stockMatriz: appData.stockMatriz
+          }} />
+          : <AccessDenied />;
+
+      case 'compras':
+        return checkPerm('viewCompras') ? <SistemaCompras /> : <AccessDenied />;
+
+      case 'remanejamento':
+        return checkPerm('viewRemanejamento') ? <Remanejamento /> : <AccessDenied />;
+
+      case 'logistica':
+        return checkPerm('viewLogistica') ?
+          <LogisticsDashboard lojasMap={appData.lojasMap} stockRows={appData.stockLab} /> // Enviando stockLab como stockRows
+          : <AccessDenied />;
+
+      case 'qualidade':
+        return checkPerm('viewQualidade') ?
+          <QualityDashboard defects={appData.defectRows} prodMap={appData.prodMap} filters={{}} />
+          : <AccessDenied />;
+
+      case 'admin_users':
+      case 'users':
+        return user.role === 'super_admin' ? <UserManagement /> : <AccessDenied />;
+
+      default:
+        return <KPIDashboard />;
+    }
+  };
+
   return (
-    <div className="page" data-theme={theme}>
-      <div className="appShell">
-        <aside className="sidebar">
-          <div className="sidebarHeader">
-            <img src="/logo-gestaovx.png" alt="Gestão VX" className="sidebarLogoImage" />
-            <div style={{ fontSize: '11px', color: 'var(--textSec)', marginTop: '4px' }}>
-              Olá, <strong>{user.username}</strong>
-            </div>
-          </div>
-
-          <div className="navList">
-            {hasPermission('view_analise') && (
-              <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise de Laboratórios</button>
-            )}
-            {hasPermission('view_logistica') && (
-              <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Calendário de Atendimento</button>
-            )}
-            {hasPermission('view_remanejamento') && (
-              <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento Inteligente</button>
-            )}
-            {hasPermission('view_compras') && (
-              <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras Manutenção</button>
-            )}
-            {hasPermission('view_bi') && (
-              <button className={`navItem ${view === "bi" ? "navItemActive" : ""}`} onClick={() => setView("bi")}>💎 BI Performance</button>
-            )}
-            {hasPermission('view_qualidade') && (
-              <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
-            )}
-
-            {user.role === 'super_admin' && (
-              <>
-                <div style={{ height: '1px', background: 'var(--border2)', margin: '8px 0' }}></div>
-                <button className={`navItem ${view === "users" ? "navItemActive" : ""}`} onClick={() => setView("users")}>🔐 Gestão de Usuários</button>
-              </>
-            )}
-          </div>
-
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
-            <button className="themeToggle" onClick={logout} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-              Sair do Sistema
-            </button>
-          </div>
-        </aside>
-
-        <main className="main">
-          <div className="topbar"><h1>{
-            view === "analise" ? "Análise de Laboratórios" :
-              view === "qualidade" ? "Qualidade" :
-                view === "logistica" ? "Calendário de Atendimento" :
-                  view === "compras" ? "Compras Manutenção" :
-                    view === "remanejamento" ? "Remanejamento Inteligente" :
-                      view === "users" ? "Gestão de Usuários" :
-                        "BI Performance"
-          }</h1></div>
-
-          {!loading && !err && (
-            <>
-              {view !== "logistica" && view !== "compras" && view !== "remanejamento" && view !== "users" && (
-                <div className="floatingWrap">
-                  <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
-                  {view === "analise" && <div className="floatingPanel"><ParamsPanel params={params} setParams={setParams} /></div>}
-                </div>
-              )}
-              {view === "analise" && hasPermission('view_analise') && <><KPICards rows={computed.rows} activeFilter={kpiFilter} onCardClick={setKpiFilter} /><ResultTable rows={displayedRows} /><TopLists rows={displayedRows} /></>}
-              {view === "qualidade" && hasPermission('view_qualidade') && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
-              {view === "logistica" && hasPermission('view_logistica') && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
-              {view === "compras" && hasPermission('view_compras') && <SistemaCompras />}
-              {view === "remanejamento" && hasPermission('view_remanejamento') && <Remanejamento />}
-              {view === "bi" && hasPermission('view_bi') && <KPIDashboard />}
-              {view === "users" && user.role === 'super_admin' && <UserManagement />}
-            </>
-          )}
-        </main>
+    <div className="app-container" data-theme="light">
+      <Sidebar
+        currentScreen={currentScreen}
+        onNavigate={setCurrentScreen}
+        user={user}
+      />
+      <div className="main-content">
+        <Header title={currentScreen.toUpperCase()} />
+        <div className="screen-wrapper">
+          {renderScreen()}
+        </div>
       </div>
     </div>
   );
 }
 
+// Sub-componente simples para Acesso Negado
+function AccessDenied() {
+  return (
+    <div className="access-denied-box">
+      <div style={{ fontSize: '4rem', marginBottom: '10px' }}>⛔</div>
+      <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Acesso Negado</h2>
+      <p>Você não tem permissão para visualizar este módulo.</p>
+    </div>
+  );
+}
+
+// --- COMPONENTE PRINCIPAL (WRAPPER) ---
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <AppContent />
     </AuthProvider>
   );
 }

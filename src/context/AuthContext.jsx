@@ -1,8 +1,12 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 
-export const AuthContext = createContext();
+// Criamos o Contexto (mas não precisamos exportar ele diretamente se usarmos o hook)
+const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+// --- HOOK PERSONALIZADO (A PEÇA QUE FALTAVA) ---
+export const useAuth = () => {
+    return useContext(AuthContext);
+};
 
 export const AuthProvider = ({ children }) => {
     // 1. O ADMIN É A LEI. Ele sempre existe e sempre entra.
@@ -36,14 +40,12 @@ export const AuthProvider = ({ children }) => {
             const saved = localStorage.getItem('app_users');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Garante que é um array
                 if (Array.isArray(parsed)) {
                     setUsersList(parsed);
                 }
             }
         } catch (error) {
             console.error("Erro ao carregar usuários:", error);
-            // Se der erro, zera a lista para não travar o admin
             setUsersList([]);
         } finally {
             setLoading(false);
@@ -51,14 +53,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     const login = (usernameInput, passwordInput) => {
-        // 🔍 DEBUG - Vamos ver o que está chegando
         console.log(`Tentativa de Login: User=[${usernameInput}] Pass=[${passwordInput}]`);
 
-        // Limpeza de entrada (Trim remove espaços acidentais e converte para string)
         const cleanUser = String(usernameInput).trim();
         const cleanPass = String(passwordInput).trim();
 
-        // 1. TENTA LOGAR COMO ADMIN PRIMEIRO (Hardcoded)
+        // 1. LOGIN ADMIN
         if (cleanUser === MASTER_USER.username) {
             if (cleanPass === MASTER_USER.password) {
                 console.log("LOGIN ADMIN SUCESSO!");
@@ -66,13 +66,12 @@ export const AuthProvider = ({ children }) => {
                 localStorage.setItem('app_session', JSON.stringify(MASTER_USER));
                 return true;
             } else {
-                console.error(`Senha admin errada. Esperado: [${MASTER_USER.password}] Recebido: [${cleanPass}]`);
+                console.error(`Senha admin errada.`);
                 throw new Error('Senha incorreta.');
             }
         }
 
-        // 2. TENTA LOGAR COMO USUÁRIO COMUM
-        // Recarrega a lista do localStorage na hora H para garantir dados frescos
+        // 2. LOGIN USUÁRIO COMUM
         let currentList = [];
         try {
             const saved = localStorage.getItem('app_users');
@@ -84,24 +83,21 @@ export const AuthProvider = ({ children }) => {
         );
 
         if (!foundUser) {
-            console.error("Usuário não encontrado na lista.");
+            console.error("Usuário não encontrado.");
             throw new Error('Usuário não encontrado.');
         }
 
-        // Verifica se está ativo (Se active for undefined, assume true para não bloquear antigos)
         if (foundUser.active === false) {
             throw new Error('Acesso bloqueado pelo administrador.');
         }
 
-        // Comparação de senha (Forçando String para resolver o bug do "010203")
         const storedPass = String(foundUser.password).trim();
 
-        console.log(`Comparando Senhas: Input=[${cleanPass}] vs Stored=[${storedPass}]`);
+        console.log(`Comparando: Input=[${cleanPass}] vs Stored=[${storedPass}]`);
 
         if (cleanPass === storedPass) {
             console.log("LOGIN USUÁRIO SUCESSO!");
-            // Define a sessão completa
-            const sessionUser = { ...foundUser, role: 'user' }; // Garante role de user
+            const sessionUser = { ...foundUser, role: 'user' };
             setUser(sessionUser);
             localStorage.setItem('app_session', JSON.stringify(sessionUser));
             return true;
@@ -113,21 +109,18 @@ export const AuthProvider = ({ children }) => {
     const logout = () => {
         setUser(null);
         localStorage.removeItem('app_session');
-        window.location.href = '/'; // Força recarregamento limpo para limpar estados
+        window.location.href = '/';
     };
 
-    // --- GESTÃO DE USUÁRIOS (ADMIN) ---
+    // --- GESTÃO (ADMIN) ---
 
     const createUser = (userData) => {
-        // Sempre salva a senha como String limpa
         const newUser = {
             ...userData,
             password: String(userData.password).trim(),
             username: String(userData.username).trim(),
-            active: true // Novos nascem ativos
+            active: true
         };
-
-        // Atualiza estado e localStorage
         const newList = [...usersList, newUser];
         setUsersList(newList);
         localStorage.setItem('app_users', JSON.stringify(newList));
@@ -137,12 +130,10 @@ export const AuthProvider = ({ children }) => {
     const updateUser = (id, updatedData) => {
         const newList = usersList.map(u => {
             if (u.id === id) {
-                // Se a senha veio vazia, mantém a antiga. Se veio preenchida, limpa e salva.
                 let finalPass = u.password;
                 if (updatedData.password && String(updatedData.password).trim() !== "") {
                     finalPass = String(updatedData.password).trim();
                 }
-
                 return { ...u, ...updatedData, password: finalPass };
             }
             return u;
@@ -157,7 +148,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('app_users', JSON.stringify(newList));
     };
 
-    // Verifica sessão salva ao recarregar página
+    // Recupera sessão
     useEffect(() => {
         const session = localStorage.getItem('app_session');
         if (session) {

@@ -91,13 +91,26 @@ export const AuthProvider = ({ children }) => {
         catch { return []; }
     };
 
-    const createUser = (data) => {
+    const createUser = (username, password, permissions) => {
         const users = getUsers();
-        // Força senha como string
-        const newUser = { ...data, id: Date.now(), password: String(data.password).trim(), active: true };
+        // Verifica se usuário já existe
+        if (users.find(u => u.username === username)) {
+            return { success: false, message: 'Usuário já existe' };
+        }
+
+        const newUser = {
+            id: Date.now(),
+            username,
+            password: String(password).trim(),
+            permissions,
+            active: true,
+            role: 'user'
+        };
+
         users.push(newUser);
         localStorage.setItem('app_users', JSON.stringify(users));
         setUsersTick(t => t + 1); // Força render
+        return { success: true };
     };
 
     const updateUser = (id, data) => {

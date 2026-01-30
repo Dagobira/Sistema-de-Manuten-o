@@ -143,8 +143,8 @@ export default function SistemaCompras() {
                     // 2. Considera remanejamentos (Saldo de Rede)
                     // ========================================
 
-                    let totalNecessidadeLojas = 0; // Soma dos buracos
-                    let totalExcessoLojas = 0;     // Soma das sobras
+                    let totalBackorder = 0; // Soma dos buracos (Necessidade das Lojas)
+                    let totalExcessoLojas = 0;     // Soma das sobras (Apenas informativo agora)
                     let totalConsumoRede = 0;
 
                     // Pegar o mapa de consumo por lab para este SKU
@@ -187,7 +187,7 @@ export default function SistemaCompras() {
                             excessoLab = estoqueAtualLab - metaLab;
                         }
 
-                        totalNecessidadeLojas += necessidadeLab;
+                        totalBackorder += necessidadeLab;
                         totalExcessoLojas += excessoLab;
 
                         // Acumular consumo total da rede
@@ -205,39 +205,35 @@ export default function SistemaCompras() {
                     // ========================================
                     // Abate o excesso da rede da necessidade total
                     // Isso considera remanejamentos internos possíveis
-                    let saldoLiquido = totalNecessidadeLojas - totalExcessoLojas;
-                    if (saldoLiquido < 0) saldoLiquido = 0;
+                    // ========================================
+                    // FÓRMULA OBRIGATÓRIA DE COMPRA
+                    // ========================================
+                    // Sugestão = (Meta Matriz + Total Backorder) - Estoque Matriz
+                    //
+                    // NÃO ABATEMOS O EXCESSO DE OUTRAS LOJAS. COMPRAMOS PARA SUPRIR QUEM PRECISA.
+                    // ========================================
 
-                    // ========================================
-                    // FÓRMULA FINAL DE COMPRA (ECONOMIA INTELIGENTE)
-                    // ========================================
-                    // Sugestão = (Meta Segurança Matriz + Saldo Líquido) - Estoque Matriz Atual
-                    //
-                    // Onde:
-                    // - Meta Segurança Matriz = Giro Total da Rede * 1.2
-                    // - Saldo Líquido = Necessidade Lojas - Excesso Lojas (já considera remanejamento)
-                    // - Estoque Matriz Atual = Estoque físico + Em Trânsito
-                    //
                     const estoqueMatrizEfetivo = estoqueMatriz + qtdEmTransito;
-                    let sugestao = Math.ceil((metaMatriz + saldoLiquido) - estoqueMatrizEfetivo);
+
+                    // FÓRMULA CORRIGIDA:
+                    let sugestao = Math.ceil((metaMatriz + totalBackorder) - estoqueMatrizEfetivo);
                     if (sugestao < 0) sugestao = 0;
 
                     // 🔍 DEBUG para SKU 24113
                     if (sku === '24113') {
-                        console.log('=== DEBUG SKU 24113 (ECONOMIA INTELIGENTE) ===');
+                        console.log('=== DEBUG SKU 24113 (FÓRMULA CORRIGIDA) ===');
                         console.log('Consumo Total Rede (3 meses):', totalConsumoRede.toFixed(2));
                         console.log('Consumo Base/Mês (vendaBase):', vendaBase.toFixed(2));
                         console.log('Meta Segurança Matriz (1.2x):', metaMatriz.toFixed(2));
-                        console.log('--- Saldo de Rede ---');
-                        console.log('Total Necessidade Lojas (Buracos):', totalNecessidadeLojas.toFixed(2));
-                        console.log('Total Excesso Lojas (Sobras):', totalExcessoLojas.toFixed(2));
-                        console.log('Saldo Líquido (Necessidade - Excesso):', saldoLiquido.toFixed(2));
+                        console.log('--- Necessidade Lojas ---');
+                        console.log('Total Backorder (Soma das necessidades):', totalBackorder.toFixed(2));
+                        console.log('Total Excesso Lojas (Informativo):', totalExcessoLojas.toFixed(2));
                         console.log('--- Estoque Matriz ---');
                         console.log('Estoque Matriz Físico:', estoqueMatriz);
                         console.log('Em Trânsito:', qtdEmTransito);
                         console.log('Estoque Efetivo (Matriz + Trânsito):', estoqueMatrizEfetivo);
                         console.log('--- Fórmula Final ---');
-                        console.log('CÁLCULO: (' + metaMatriz.toFixed(2) + ' + ' + saldoLiquido.toFixed(2) + ') - ' + estoqueMatrizEfetivo + ' = ' + sugestao);
+                        console.log('CÁLCULO: (' + metaMatriz.toFixed(2) + ' + ' + totalBackorder.toFixed(2) + ') - ' + estoqueMatrizEfetivo + ' = ' + sugestao);
                         console.log('========================================');
                     }
 
@@ -264,7 +260,7 @@ export default function SistemaCompras() {
                         metaMatriz: metaMatriz,
                         estoqueMatriz: estoqueMatriz,
                         emTransito: qtdEmTransito,
-                        totalNecessidadeLojas: saldoLiquido, // Saldo Líquido (já descontou excessos)
+                        totalNecessidadeLojas: totalBackorder, // Agora reflete o puro Backorder
                         sugestao: sugestao,
                         precoUnitario: info.preco,
                         status,

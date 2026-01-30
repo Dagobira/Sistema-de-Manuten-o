@@ -100,23 +100,24 @@ export default function App() {
             <img src="/logo-gestaovx.png" alt="Gestão VX" className="sidebarLogoImage" />
           </div>
           <div className="navList">
-            <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise Estoque</button>
-            <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
-            <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Logística</button>
-            <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras</button>
-            <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento</button>
+            <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise de Laboratórios</button>
+            <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Calendário de Atendimento</button>
+            <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento Inteligente</button>
+            <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras Manutenção</button>
             <button className={`navItem ${view === "bi" ? "navItemActive" : ""}`} onClick={() => setView("bi")}>💎 BI Performance</button>
+            <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
           </div>
           <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
         </aside>
 
         <main className="main">
           <div className="topbar"><h1>{
-            view === "analise" ? "Análise" :
+            view === "analise" ? "Análise de Laboratórios" :
               view === "qualidade" ? "Qualidade" :
-                view === "logistica" ? "Logística" :
-                  view === "compras" ? "Sugestão de Compras" :
-                    "Remanejamento de Estoque"
+                view === "logistica" ? "Calendário de Atendimento" :
+                  view === "compras" ? "Compras Manutenção" :
+                    view === "remanejamento" ? "Remanejamento Inteligente" :
+                      "BI Performance"
           }</h1></div>
           {!loading && !err && (
             <>

@@ -1,4 +1,4 @@
-// engine.js - Versão Blindada para Leitura de Lojas
+// engine.js - Versão Blindada (Sincronizada com Compras)
 
 // --- FUNÇÕES AUXILIARES ---
 function findValue(row, candidates) {
@@ -6,14 +6,11 @@ function findValue(row, candidates) {
   const keys = Object.keys(row);
   for (const candidate of candidates) {
     if (row[candidate] !== undefined) return row[candidate];
-
     // Normalização para ignorar acentos, maiúsculas e espaços extras
     const normalize = (s) => String(s).trim().toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replace(/[\.\-\_]/g, ""); // Remove pontos, traços e underlines
-
+      .replace(/[\.\-\_]/g, "");
     const target = normalize(candidate);
-
     const foundKey = keys.find(k => normalize(k) === target);
     if (foundKey) return row[foundKey];
   }
@@ -23,8 +20,7 @@ function findValue(row, candidates) {
 function parseNumber(val) {
   if (typeof val === 'number') return val;
   if (!val) return 0;
-  let s = String(val).trim();
-  s = s.replace("R$", "").trim();
+  let s = String(val).trim().replace("R$", "").trim();
   if (s.includes(',') && s.includes('.')) {
     s = s.replace(/\./g, '').replace(',', '.');
   } else if (s.includes(',')) {
@@ -77,21 +73,16 @@ export function buildLabSnapshotMap(csvData) {
   return map;
 }
 
-// --- CORREÇÃO PRINCIPAL AQUI (LOJAS) ---
 export function buildLojasMap(csvData) {
   const map = new Map();
   csvData.forEach(row => {
-    // Busca inteligente pelo Nome do Sistema
     const chave = findValue(row, ["Nome_Sistema", "Nome Sistema", "Laboratorio"]);
-
-    if (!chave) return; // Se não achar o nome, pula
-
+    if (!chave) return;
     map.set(chave, {
       id: findValue(row, ["ID_Loja", "ID"]),
       nomeFantasia: findValue(row, ["Nome_Fantasia", "Nome Fantasia", "Loja"]),
       uf: findValue(row, ["UF", "Estado"]),
       cidade: findValue(row, ["Cidade"]),
-      // Aqui estava o problema: Agora ele busca todas as variações possíveis
       diasAtendimento: findValue(row, ["Dias_Atenidmento", "Dias_Atendimento", "Dias Atendimento", "Dia"]),
       tempoEntrega: parseNumber(findValue(row, ["Tempo_de_Entrega", "Tempo Entrega", "Prazo"]))
     });
@@ -132,17 +123,18 @@ export function normalizeMovRows(csvData) {
     }
     const vendas = parseNumber(findValue(row, ["PecasVendidas", "Vendas", "Venda"])) || 0;
 
-    const danificado = parseNumber(findValue(row, ["Danificado"])) || 0;
-    const defeito = parseNumber(findValue(row, ["Defeito"])) || 0;
-    const erro = parseNumber(findValue(row, ["ErroOperacional"])) || 0;
-    const excecao = parseNumber(findValue(row, ["Excecao", "Exceção"])) || 0;
-    const excecaoDiamante = parseNumber(findValue(row, ["ExcecaoDiamante"])) || 0;
-    const garantia = parseNumber(findValue(row, ["Garantia"])) || 0;
-    const naoOrcado = parseNumber(findValue(row, ["NaoOrcado"])) || 0;
-    const servicoDesfeito = parseNumber(findValue(row, ["ServicoDesfeito"])) || 0;
-    const usoInterno = parseNumber(findValue(row, ["UsoInterno", "Consumo"])) || 0;
+    // Soma de todas as outras saídas
+    const outrasSaidas =
+      (parseNumber(findValue(row, ["Danificado"])) || 0) +
+      (parseNumber(findValue(row, ["Defeito"])) || 0) +
+      (parseNumber(findValue(row, ["ErroOperacional"])) || 0) +
+      (parseNumber(findValue(row, ["Excecao", "Exceção"])) || 0) +
+      (parseNumber(findValue(row, ["ExcecaoDiamante"])) || 0) +
+      (parseNumber(findValue(row, ["Garantia"])) || 0) +
+      (parseNumber(findValue(row, ["NaoOrcado"])) || 0) +
+      (parseNumber(findValue(row, ["ServicoDesfeito"])) || 0) +
+      (parseNumber(findValue(row, ["UsoInterno", "Consumo"])) || 0);
 
-    const outrasSaidas = danificado + defeito + erro + excecao + excecaoDiamante + garantia + naoOrcado + servicoDesfeito + usoInterno;
     const labName = findValue(row, ["Laboratorio", "Lab"]) || "Desconhecido";
 
     return {
@@ -160,7 +152,6 @@ export function normalizeDefectRows(csvData, lojasMap) {
   return csvData.map(row => {
     const labRaw = findValue(row, ["Laboratório", "Laboratorio", "Laboratorio "]);
     const lojaConfig = lojasMap.get(labRaw);
-
     return {
       Data: findValue(row, ["Data"]),
       Motivo: findValue(row, ["Outras Saidas", "Motivo"]),
@@ -196,9 +187,14 @@ export function parseSkuInput(text) {
   return text.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
 }
 
+// ---------------------------------------------------------
+// 🧠 O CÉREBRO PRINCIPAL (Updated)
+// ---------------------------------------------------------
+
 export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, filters, params }) {
   const { mesInicio, mesFim, labs, categorias, skuList } = filters;
 
+  // 1. Filtrar
   const filteredMovs = movRows.filter(r => {
     if (!r.Mes) return false;
     if (mesInicio && r.Mes < mesInicio) return false;
@@ -208,6 +204,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
     return true;
   });
 
+  // 2. Agrupar
   const groupMap = new Map();
   filteredMovs.forEach(r => {
     const key = `${r.Laboratorio}__${r.SKU}`;
@@ -233,6 +230,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
       const estLab = labSnapMap.get(key) || 0;
       const estMatriz = matrizMap.get(sku) || 0;
 
+      // Calcular número de meses
       let mesesCount = 1;
       if (mesInicio && mesFim) {
         const d1 = new Date(mesInicio + "-01");
@@ -246,50 +244,66 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
       const mediaMensal = stats.total / mesesCount;
       const cobertura = mediaMensal > 0 ? (estLab / mediaMensal) : (estLab > 0 ? 999 : 0);
 
+      // --- NOVA LÓGICA (SYNC COM COMPRAS) ---
+      let alvo = 0;
       let sugestao = 0;
       let devolver = 0;
       let status = "Ok";
-      let alvo = 0;
+      let diagnosticoIA = "✅ Estável";
 
-      if (stats.total === 0) {
+      if (mediaMensal > 0) {
+        // PISO DINÂMICO
+        if (mediaMensal < 1.0) {
+          // Giro Baixo: Piso 1
+          alvo = Math.max(mediaMensal * params.coberturaAlvoMeses, 1);
+        } else {
+          // Giro Alto: Piso 3
+          alvo = Math.max(mediaMensal * params.coberturaAlvoMeses, 3);
+        }
+      } else {
+        // SEM VENDAS NO PERÍODO
         if (mesesCount >= params.regra12m) {
           alvo = 0;
           status = "Sem Giro 12m";
-          devolver = estLab;
         } else if (mesesCount >= params.regra6m) {
-          alvo = 1;
+          alvo = estLab > 0 ? 1 : 0;
           status = "Sem Giro 6m";
-          if (estLab > 1) {
-            devolver = estLab - 1;
-          } else if (estLab === 0) {
-            devolver = 0;
-          }
         } else {
-          alvo = estLab;
+          alvo = estLab; // Mantém o que tem
         }
       }
-      else {
-        const metaMatematica = mediaMensal * params.coberturaAlvoMeses;
-        alvo = Math.max(metaMatematica, 3);
 
-        const falta = alvo - estLab;
+      alvo = Math.ceil(alvo);
 
-        if (falta > 0) {
-          if (falta >= params.transferenciaMinima || estLab === 0) {
-            sugestao = Math.ceil(falta);
-            status = "Reposição";
-          }
-        } else if (estLab > alvo) {
-          const excesso = Math.floor(estLab - alvo);
-          if (excesso > 0) {
-            devolver = excesso;
-            status = "Remanejar";
-          }
+      const diferenca = alvo - estLab;
+
+      if (diferenca > 0) {
+        // Falta peça
+        if (diferenca >= params.transferenciaMinima || estLab === 0) {
+          sugestao = diferenca;
+          status = "Reposição";
         }
+      } else if (diferenca < 0) {
+        // Sobra peça
+        devolver = Math.abs(diferenca);
+        status = "Remanejar";
+      }
+
+      // DIAGNÓSTICO IA
+      if (estLab === 0 && mediaMensal > 0) {
+        diagnosticoIA = "🚨 RUPTURA! Vendas perdidas.";
+        status = "Crítico";
+      } else if (estLab < alvo) {
+        diagnosticoIA = `⚠️ Baixo. Faltam ${sugestao}.`;
+      } else if (devolver > 0) {
+        diagnosticoIA = `📉 Excesso. Mover ${devolver}.`;
+      } else if (mediaMensal === 0 && estLab > 0) {
+        diagnosticoIA = "❄️ Item Parado.";
+      } else {
+        diagnosticoIA = "✅ Estoque Saudável.";
       }
 
       if (devolver > estLab) devolver = estLab;
-      if (devolver < 0) devolver = 0;
 
       results.push({
         id: key,
@@ -307,9 +321,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
         EstoqueAlvo: alvo,
         Reposicao: sugestao,
         Remanejamento: devolver,
-        SugestaoIA: sugestao,
-        ReposicaoSugeridaBruta: sugestao,
-        DevolverSugerido: devolver,
+        SugestaoIA: diagnosticoIA,
         Status: status
       });
     });

@@ -83,7 +83,7 @@ export default function ResultTable({ rows }) {
 
     { id: "Reposicao", label: "Reposição", width: 80, align: "center", color: "var(--accent)", bold: true },
     { id: "Remanejamento", label: "Remanejar", width: 80, align: "center", color: "#ef4444" },
-    { id: "SugestaoIA", label: "Sugestão IA", width: 90, align: "center", color: "#a855f7" },
+    { id: "SugestaoIA", label: "Sugestão IA", width: 150, align: "center", color: "#a855f7" },
 
     { id: "Status", label: "Status", width: 110, align: "center" },
   ], []);

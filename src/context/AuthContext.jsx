@@ -7,56 +7,82 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const [users, setUsers] = useState([]);
 
+    // Helper para limpar strings (remove espaços e garante string)
+    const clean = (str) => String(str || "").trim();
+
+    // Helper para garantir que o Admin existe
+    const ensureAdmin = (loadedUsers) => {
+        const adminExists = loadedUsers.find(u => clean(u.username) === 'admin');
+        if (!adminExists) {
+            const masterUser = {
+                id: 1,
+                username: 'admin',
+                password: '123', // Será tratado como string na comparação "123"
+                role: 'super_admin',
+                active: true,
+                permissions: ['all']
+            };
+            return [...loadedUsers, masterUser];
+        }
+        return loadedUsers;
+    };
+
     useEffect(() => {
-        // Carregar sessão
+        // 1. Carregar Sessão Atual
         const savedUser = localStorage.getItem('vx_session_user');
         if (savedUser) {
             setUser(JSON.parse(savedUser));
         }
 
-        // Carregar base de usuários
-        const savedUsers = localStorage.getItem('vx_users_db');
-        if (savedUsers) {
-            setUsers(JSON.parse(savedUsers));
-        } else {
-            // Cria usuário Mestre
-            const masterUser = {
-                id: 1,
-                username: 'admin',
-                password: '123',
-                role: 'super_admin',
-                active: true,
-                permissions: ['all']
-            };
-            setUsers([masterUser]);
-            localStorage.setItem('vx_users_db', JSON.stringify([masterUser]));
+        // 2. Carregar Base de Usuários
+        const savedUsersStr = localStorage.getItem('vx_users_db');
+        let loadedUsers = [];
+
+        if (savedUsersStr) {
+            try {
+                loadedUsers = JSON.parse(savedUsersStr);
+            } catch (e) {
+                console.error("Erro ao ler users DB", e);
+                loadedUsers = [];
+            }
         }
+
+        // Adiciona Admin se não existir
+        const finalUsers = ensureAdmin(loadedUsers);
+
+        setUsers(finalUsers);
         setLoading(false);
     }, []);
 
-    // Atualiza DB no localStorage sempre que mudar
+    // 3. Persistência Automática: Salva sempre que `users` mudar
     useEffect(() => {
-        if (users.length > 0) {
+        if (!loading && users.length > 0) {
             localStorage.setItem('vx_users_db', JSON.stringify(users));
         }
-    }, [users]);
+    }, [users, loading]);
 
-    const login = (username, password) => {
-        // 1. Master Hardcoded
-        if (username === 'admin' && password === '1234') {
+    const login = (usernameInput, passwordInput) => {
+        const userInput = clean(usernameInput);
+        const passInput = clean(passwordInput);
+
+        // 1. Master Hardcoded (Failsafe)
+        if (userInput === 'admin' && passInput === '1234') {
             const master = { id: 1, username: 'admin', role: 'super_admin', active: true, permissions: ['all'] };
             setUser(master);
             localStorage.setItem('vx_session_user', JSON.stringify(master));
             return { success: true };
         }
 
-        // 2. Base de usuários
-        const found = users.find(u => u.username === username && u.password === password);
+        // 2. Busca na base (com coerção para string e trim)
+        const found = users.find(u => {
+            const uName = clean(u.username);
+            const uPass = clean(u.password);
+            return uName === userInput && uPass === passInput;
+        });
 
         if (found) {
-            // Checagem de Status
             if (found.active === false) {
-                return { success: false, message: 'Usuário desativado. Contate o administrador.' };
+                return { success: false, message: 'Conta desativada. Contate o suporte.' };
             }
 
             const sessionUser = {
@@ -65,6 +91,7 @@ export function AuthProvider({ children }) {
                 role: found.role,
                 permissions: found.permissions
             };
+
             setUser(sessionUser);
             localStorage.setItem('vx_session_user', JSON.stringify(sessionUser));
             return { success: true };
@@ -79,37 +106,57 @@ export function AuthProvider({ children }) {
     };
 
     const createUser = (username, password, permissions = []) => {
-        if (users.find(u => u.username === username)) {
+        const safeUser = clean(username);
+        const safePass = clean(password);
+
+        if (users.find(u => clean(u.username) === safeUser)) {
             return { success: false, message: 'Usuário já existe' };
         }
+
         const newUser = {
             id: Date.now(),
-            username,
-            password,
+            username: safeUser,
+            password: safePass,
             role: 'user',
-            active: true, // Padrão: Ativo
+            active: true,
             permissions
         };
-        setUsers([...users, newUser]);
+
+        setUsers(prev => [...prev, newUser]);
         return { success: true };
     };
 
-    // NOVA FUNÇÃO: Atualizar Usuário
     const updateUser = (id, updates) => {
-        const newUsers = users.map(u => {
+        setUsers(prevUsers => prevUsers.map(u => {
             if (u.id === id) {
-                // Se a senha vier vazia, não altera
-                const finalPassword = (updates.password && updates.password.trim() !== "") ? updates.password : u.password;
-                return { ...u, ...updates, password: finalPassword };
+                // Logica segura de atualização
+                const updatedUser = { ...u };
+
+                // Atualizar Senha (se fornecida e não vazia)
+                if (updates.password !== undefined) {
+                    const passStr = clean(updates.password);
+                    if (passStr !== "") updatedUser.password = passStr;
+                }
+
+                // Atualizar Status
+                if (updates.active !== undefined) {
+                    updatedUser.active = !!updates.active; // Força boolean
+                }
+
+                // Atualizar Permissões
+                if (updates.permissions !== undefined) {
+                    updatedUser.permissions = updates.permissions;
+                }
+
+                return updatedUser;
             }
             return u;
-        });
-        setUsers(newUsers);
+        }));
         return { success: true };
     };
 
     const deleteUser = (id) => {
-        setUsers(users.filter(u => u.id !== id));
+        setUsers(prev => prev.filter(u => u.id !== id));
     };
 
     const hasPermission = (viewName) => {

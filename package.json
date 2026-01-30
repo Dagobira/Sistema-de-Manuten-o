@@ -13,6 +13,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "firebase": "^12.8.0",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^5.0.7",
     "papaparse": "^5.4.1",

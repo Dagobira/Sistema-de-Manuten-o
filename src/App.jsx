@@ -108,7 +108,13 @@ function AppContent() {
       case 'remanejamento': return canView('view_remanejamento') ? <Remanejamento /> : <Denied />;
 
       case 'logistica': return canView('view_logistica') ?
-        <LogisticsDashboard lojasMap={appData.lojasMap} stockRows={appData.stockRows} />
+        <LogisticsDashboard
+          lojasMap={appData.lojasMap}
+          stockRows={appData.stockRows}
+          prodMap={appData.prodMap}
+          movRows={appData.movRows}
+          stockMatriz={appData.stockMatriz}
+        />
         : <Denied />;
 
       case 'qualidade': return canView('view_qualidade') ?

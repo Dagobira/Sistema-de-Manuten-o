@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { computeFelipeTable, buildMatrizMap, buildLabSnapshotMap, buildMonthOptions } from '../lib/engine';
 
 // ============================================
 // ESTILOS MODERNOS - REDESIGN TECNOLÓGICO
@@ -210,7 +211,7 @@ const modernStyles = `
   @media (max-width: 768px) { .stores-grid { grid-template-columns: 1fr; } .kpi-stats-grid { grid-template-columns: repeat(2, 1fr); } }
 `;
 
-export default function LogisticsDashboard({ lojasMap, stockRows }) {
+export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRows, stockMatriz }) {
   const [selectedLoja, setSelectedLoja] = useState(null);
   const [activeKPI, setActiveKPI] = useState(null);
 
@@ -241,6 +242,43 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
     return date.toLocaleDateString("pt-BR", { day: '2-digit', month: '2-digit' });
   };
 
+  // --- CÁLCULO DE REPOSIÇÃO (Igual ao Compras) ---
+  const calculatedStock = useMemo(() => {
+    if (!prodMap || !movRows || !stockMatriz || !stockRows) return [];
+
+    // 1. Preparar Mapas
+    const matrizMap = buildMatrizMap(stockMatriz);
+    const labSnapMap = buildLabSnapshotMap(stockRows);
+
+    // 2. Definir Período (Últimos 3 meses ou tudo)
+    const availableMonths = buildMonthOptions(movRows);
+    const mesInicio = availableMonths.length >= 3 ? availableMonths[availableMonths.length - 3] : availableMonths[0];
+    const mesFim = availableMonths[availableMonths.length - 1];
+
+    // 3. Calcular usando Engine oficial
+    const result = computeFelipeTable({
+      prodMap,
+      matrizMap,
+      labSnapMap,
+      movRows,
+      filters: {
+        mesInicio,
+        mesFim,
+        labs: [], // Todos
+        categorias: [],
+        skuList: []
+      },
+      params: {
+        coberturaAlvoMeses: 1,
+        regra12m: 12, // Se não vendeu em 12m, alvo = 0
+        regra6m: 6,   // Se não vendeu em 6m, alvo = 1 (se tiver estoque)
+        transferenciaMinima: 1
+      }
+    });
+
+    return result.rows || [];
+  }, [prodMap, movRows, stockMatriz, stockRows]);
+
   const agenda = useMemo(() => {
     const grid = { "Segunda-Feira": [], "Terça-Feira": [], "Quarta-Feira": [], "Quinta-Feira": [], "Sexta-Feira": [] };
 
@@ -256,7 +294,7 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
       else return;
 
       const targetLabClean = superClean(key);
-      const storeItems = stockRows.filter(r => {
+      const storeItems = calculatedStock.filter(r => {
         const rowLabClean = superClean(r.Laboratorio);
         return rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean);
       });
@@ -282,7 +320,7 @@ export default function LogisticsDashboard({ lojasMap, stockRows }) {
       }
     });
     return grid;
-  }, [lojasMap, stockRows]);
+  }, [lojasMap, calculatedStock]);
 
   const stats = useMemo(() => {
     let totalEnvios = 0;

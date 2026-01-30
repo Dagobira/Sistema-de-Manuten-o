@@ -31,11 +31,14 @@ export default function UserManagement() {
     ];
 
     /* --- CRIAÇÃO --- */
-    const handleCreate = (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
         if (!newUser.username || !newUser.password) return;
         const permArray = Object.keys(permissions).filter(k => permissions[k]).map(k => `view_${k}`);
-        const res = createUser(newUser.username, newUser.password, permArray);
+
+        setMsg('Criando usuário...');
+        const res = await createUser(newUser.username, newUser.password, permArray);
+
         if (res.success) {
             setMsg('Usuário criado!');
             setNewUser({ username: '', password: '' });
@@ -61,9 +64,9 @@ export default function UserManagement() {
         });
     };
 
-    const handleUpdate = () => {
+    const handleUpdate = async () => {
         const permArray = Object.keys(editForm.permissions).filter(k => editForm.permissions[k]).map(k => `view_${k}`);
-        updateUser(editingUser.id, {
+        await updateUser(editingUser.id, {
             password: editForm.password,
             active: editForm.active,
             permissions: permArray

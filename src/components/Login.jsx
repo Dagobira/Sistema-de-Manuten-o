@@ -5,15 +5,21 @@ export default function Login() {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setError('');
         try {
-            login(username, password);
+            setLoading(true);
+            const res = await login(username, password);
+            if (!res.success) {
+                setError(res.message);
+                setLoading(false);
+            }
         } catch (err) {
-            setError(err.message);
+            setError('Erro ao processar login.');
+            setLoading(false);
         }
     };
 

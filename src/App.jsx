@@ -10,8 +10,10 @@ import QualityDashboard from "./components/QualityDashboard";
 import LogisticsDashboard from "./components/LogisticsDashboard";
 import SistemaCompras from "./components/SistemaCompras";
 import Remanejamento from "./components/Remanejamento";
-import KPIDashboard from "./components/KPIDashboard"; // [NOVO]
-
+import KPIDashboard from "./components/KPIDashboard";
+import Login from "./components/Login";
+import UserManagement from "./components/UserManagement";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
 import { loadCSV } from "./lib/csv";
 import {
@@ -20,7 +22,9 @@ import {
   buildLojasMap, buildTecnicosMap, normalizeDefectRows
 } from "./lib/engine";
 
-export default function App() {
+function MainApp() {
+  const { user, logout, hasPermission, loading: authLoading } = useAuth();
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [view, setView] = useState("analise");
@@ -41,6 +45,30 @@ export default function App() {
   const [filters, setFilters] = useState({ mesInicio: "", mesFim: "", categorias: [], labs: [], skuText: "" });
   const [kpiFilter, setKpiFilter] = useState(null);
   const [params, setParams] = useState({ coberturaAlvoMeses: 3, transferenciaMinima: 2, regra6m: 6, regra12m: 12 });
+
+  // Redireciona para a primeira view permitida se a atual for proibida
+  useEffect(() => {
+    if (!user) return;
+
+    // Lista de views e suas permissões
+    const views = [
+      { id: 'analise', perm: 'view_analise' },
+      { id: 'logistica', perm: 'view_logistica' },
+      { id: 'remanejamento', perm: 'view_remanejamento' },
+      { id: 'compras', perm: 'view_compras' },
+      { id: 'bi', perm: 'view_bi' },
+      { id: 'qualidade', perm: 'view_qualidade' },
+      { id: 'users', perm: 'super_admin' } // Special case
+    ];
+
+    // Se a view atual não é permitida, muda pra primeira permitida
+    const currentAllowed = view === 'users' ? user.role === 'super_admin' : hasPermission(`view_${view}`);
+
+    if (!currentAllowed) {
+      const first = views.find(v => v.id === 'users' ? user.role === 'super_admin' : hasPermission(v.perm));
+      if (first) setView(first.id);
+    }
+  }, [user, view]); // eslint-disable-line
 
   useEffect(() => {
     (async () => {
@@ -92,22 +120,57 @@ export default function App() {
     });
   }, [computed.rows, kpiFilter]);
 
+  if (authLoading) return <div style={{ display: 'flex', height: '100vh', fontWeight: 'bold', alignItems: 'center', justifyContent: 'center', color: '#666' }}>Carregando Sessão...</div>;
+
+  if (!user) {
+    return <Login />;
+  }
+
   return (
     <div className="page" data-theme={theme}>
       <div className="appShell">
         <aside className="sidebar">
           <div className="sidebarHeader">
             <img src="/logo-gestaovx.png" alt="Gestão VX" className="sidebarLogoImage" />
+            <div style={{ fontSize: '11px', color: 'var(--textSec)', marginTop: '4px' }}>
+              Olá, <strong>{user.username}</strong>
+            </div>
           </div>
+
           <div className="navList">
-            <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise de Laboratórios</button>
-            <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Calendário de Atendimento</button>
-            <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento Inteligente</button>
-            <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras Manutenção</button>
-            <button className={`navItem ${view === "bi" ? "navItemActive" : ""}`} onClick={() => setView("bi")}>💎 BI Performance</button>
-            <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
+            {hasPermission('view_analise') && (
+              <button className={`navItem ${view === "analise" ? "navItemActive" : ""}`} onClick={() => setView("analise")}>📊 Análise de Laboratórios</button>
+            )}
+            {hasPermission('view_logistica') && (
+              <button className={`navItem ${view === "logistica" ? "navItemActive" : ""}`} onClick={() => setView("logistica")}>🚚 Calendário de Atendimento</button>
+            )}
+            {hasPermission('view_remanejamento') && (
+              <button className={`navItem ${view === "remanejamento" ? "navItemActive" : ""}`} onClick={() => setView("remanejamento")}>🔄 Remanejamento Inteligente</button>
+            )}
+            {hasPermission('view_compras') && (
+              <button className={`navItem ${view === "compras" ? "navItemActive" : ""}`} onClick={() => setView("compras")}>🛒 Compras Manutenção</button>
+            )}
+            {hasPermission('view_bi') && (
+              <button className={`navItem ${view === "bi" ? "navItemActive" : ""}`} onClick={() => setView("bi")}>💎 BI Performance</button>
+            )}
+            {hasPermission('view_qualidade') && (
+              <button className={`navItem ${view === "qualidade" ? "navItemActive" : ""}`} onClick={() => setView("qualidade")}>🛡️ Qualidade</button>
+            )}
+
+            {user.role === 'super_admin' && (
+              <>
+                <div style={{ height: '1px', background: 'var(--border2)', margin: '8px 0' }}></div>
+                <button className={`navItem ${view === "users" ? "navItemActive" : ""}`} onClick={() => setView("users")}>🔐 Gestão de Usuários</button>
+              </>
+            )}
           </div>
-          <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
+
+          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button className="themeToggle" onClick={() => setTheme(t => t === "light" ? "dark" : "light")}>Modo Escuro</button>
+            <button className="themeToggle" onClick={logout} style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+              Sair do Sistema
+            </button>
+          </div>
         </aside>
 
         <main className="main">
@@ -117,26 +180,37 @@ export default function App() {
                 view === "logistica" ? "Calendário de Atendimento" :
                   view === "compras" ? "Compras Manutenção" :
                     view === "remanejamento" ? "Remanejamento Inteligente" :
-                      "BI Performance"
+                      view === "users" ? "Gestão de Usuários" :
+                        "BI Performance"
           }</h1></div>
+
           {!loading && !err && (
             <>
-              {view !== "logistica" && view !== "compras" && view !== "remanejamento" && (
+              {view !== "logistica" && view !== "compras" && view !== "remanejamento" && view !== "users" && (
                 <div className="floatingWrap">
                   <div className="floatingPanel"><FilterPanel monthOptions={monthOptions} labOptions={labOptions} categoryOptions={categoryOptions} filters={filters} setFilters={setFilters} /></div>
                   {view === "analise" && <div className="floatingPanel"><ParamsPanel params={params} setParams={setParams} /></div>}
                 </div>
               )}
-              {view === "analise" && <><KPICards rows={computed.rows} activeFilter={kpiFilter} onCardClick={setKpiFilter} /><ResultTable rows={displayedRows} /><TopLists rows={displayedRows} /></>}
-              {view === "qualidade" && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
-              {view === "logistica" && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
-              {view === "compras" && <SistemaCompras />}
-              {view === "remanejamento" && <Remanejamento />}
-              {view === "bi" && <KPIDashboard />}
+              {view === "analise" && hasPermission('view_analise') && <><KPICards rows={computed.rows} activeFilter={kpiFilter} onCardClick={setKpiFilter} /><ResultTable rows={displayedRows} /><TopLists rows={displayedRows} /></>}
+              {view === "qualidade" && hasPermission('view_qualidade') && <QualityDashboard defects={defectRows} prodMap={prodMap} filters={filters} />}
+              {view === "logistica" && hasPermission('view_logistica') && <LogisticsDashboard lojasMap={lojasMap} stockRows={computed.rows} />}
+              {view === "compras" && hasPermission('view_compras') && <SistemaCompras />}
+              {view === "remanejamento" && hasPermission('view_remanejamento') && <Remanejamento />}
+              {view === "bi" && hasPermission('view_bi') && <KPIDashboard />}
+              {view === "users" && user.role === 'super_admin' && <UserManagement />}
             </>
           )}
         </main>
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <MainApp />
+    </AuthProvider>
   );
 }

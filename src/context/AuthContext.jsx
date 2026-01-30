@@ -3,121 +3,123 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(null); // Usuário Logado
-    const [users, setUsers] = useState([]); // Lista de todos usuários (para admin)
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [users, setUsers] = useState([]);
 
-    // Carregar dados iniciais
     useEffect(() => {
-        async function initAuth() {
-            // 1. Tentar recuperar sessão atual
-            const savedUser = localStorage.getItem('loggedUser');
-            if (savedUser) {
-                setUser(JSON.parse(savedUser));
-            }
-
-            // 2. Carregar Lista de Usuários
-            try {
-                const res = await fetch('/data/users.json');
-                if (res.ok) {
-                    const jsonUsers = await res.json();
-                    const localUsersRaw = localStorage.getItem('allUsers');
-
-                    let finalUsers = jsonUsers;
-
-                    if (localUsersRaw) {
-                        const localUsers = JSON.parse(localUsersRaw);
-                        // MESCLAGEM INTELIGENTE:
-                        // Pegamos o Admin (ID 1) SEMPRE do JSON (para garantir senha atualizada)
-                        // Pegamos os outros usuários do LocalStorage (se existirem) para manter criados
-
-                        const adminFromJson = jsonUsers.find(u => u.id === 1);
-                        const othersFromLocal = localUsers.filter(u => u.id !== 1);
-
-                        // Se houver users no JSON que não estão no local (novos users padrão?), adiciona também
-                        // Mas simplificando: Admin é a fonte da verdade para ID 1.
-
-                        finalUsers = [adminFromJson, ...othersFromLocal];
-                    }
-
-                    setUsers(finalUsers);
-                    localStorage.setItem('allUsers', JSON.stringify(finalUsers));
-                } else {
-                    throw new Error("Falha ao carregar users.json");
-                }
-            } catch (err) {
-                console.error("Erro ao carregar users.json", err);
-                // Fallback: Se falhar fetch, confia no local storage antigo
-                const localUsers = localStorage.getItem('allUsers');
-                if (localUsers) setUsers(JSON.parse(localUsers));
-            }
-
-            setLoading(false);
+        // Carregar sessão
+        const savedUser = localStorage.getItem('vx_session_user');
+        if (savedUser) {
+            setUser(JSON.parse(savedUser));
         }
-        initAuth();
+
+        // Carregar base de usuários
+        const savedUsers = localStorage.getItem('vx_users_db');
+        if (savedUsers) {
+            setUsers(JSON.parse(savedUsers));
+        } else {
+            // Cria usuário Mestre
+            const masterUser = {
+                id: 1,
+                username: 'admin',
+                password: '123',
+                role: 'super_admin',
+                active: true,
+                permissions: ['all']
+            };
+            setUsers([masterUser]);
+            localStorage.setItem('vx_users_db', JSON.stringify([masterUser]));
+        }
+        setLoading(false);
     }, []);
 
-    const login = (email, password) => {
-        // Busca user na lista carregada
-        const found = users.find(u => u.email === email && u.password === password);
-        if (found) {
-            const sessionUser = { ...found };
-            delete sessionUser.password;
-            setUser(sessionUser);
-            localStorage.setItem('loggedUser', JSON.stringify(sessionUser));
+    // Atualiza DB no localStorage sempre que mudar
+    useEffect(() => {
+        if (users.length > 0) {
+            localStorage.setItem('vx_users_db', JSON.stringify(users));
+        }
+    }, [users]);
+
+    const login = (username, password) => {
+        // 1. Master Hardcoded
+        if (username === 'admin' && password === '1234') {
+            const master = { id: 1, username: 'admin', role: 'super_admin', active: true, permissions: ['all'] };
+            setUser(master);
+            localStorage.setItem('vx_session_user', JSON.stringify(master));
             return { success: true };
         }
-        return { success: false, message: 'Email ou senha inválidos' };
+
+        // 2. Base de usuários
+        const found = users.find(u => u.username === username && u.password === password);
+
+        if (found) {
+            // Checagem de Status
+            if (found.active === false) {
+                return { success: false, message: 'Usuário desativado. Contate o administrador.' };
+            }
+
+            const sessionUser = {
+                id: found.id,
+                username: found.username,
+                role: found.role,
+                permissions: found.permissions
+            };
+            setUser(sessionUser);
+            localStorage.setItem('vx_session_user', JSON.stringify(sessionUser));
+            return { success: true };
+        }
+
+        return { success: false, message: 'Usuário ou senha incorretos' };
     };
 
     const logout = () => {
         setUser(null);
-        localStorage.removeItem('loggedUser');
+        localStorage.removeItem('vx_session_user');
     };
 
-    // Funções de Admin
-    const addUser = (newUser) => {
-        const updatedList = [...users, { ...newUser, id: Date.now() }];
-        setUsers(updatedList);
-        localStorage.setItem('allUsers', JSON.stringify(updatedList));
-    };
-
-    const editUserPermissions = (id, newPermissions) => {
-        const updatedList = users.map(u =>
-            u.id === id ? { ...u, permissions: newPermissions } : u
-        );
-        setUsers(updatedList);
-        localStorage.setItem('allUsers', JSON.stringify(updatedList));
-
-        if (user && user.id === id) {
-            const updatedUser = { ...user, permissions: newPermissions };
-            setUser(updatedUser);
-            localStorage.setItem('loggedUser', JSON.stringify(updatedUser));
+    const createUser = (username, password, permissions = []) => {
+        if (users.find(u => u.username === username)) {
+            return { success: false, message: 'Usuário já existe' };
         }
+        const newUser = {
+            id: Date.now(),
+            username,
+            password,
+            role: 'user',
+            active: true, // Padrão: Ativo
+            permissions
+        };
+        setUsers([...users, newUser]);
+        return { success: true };
     };
 
-    const getAccessibleScreens = () => {
-        return ['analise', 'qualidade', 'logistica', 'compras', 'admin'];
+    // NOVA FUNÇÃO: Atualizar Usuário
+    const updateUser = (id, updates) => {
+        const newUsers = users.map(u => {
+            if (u.id === id) {
+                // Se a senha vier vazia, não altera
+                const finalPassword = (updates.password && updates.password.trim() !== "") ? updates.password : u.password;
+                return { ...u, ...updates, password: finalPassword };
+            }
+            return u;
+        });
+        setUsers(newUsers);
+        return { success: true };
     };
 
-    const canAccess = (screen) => {
+    const deleteUser = (id) => {
+        setUsers(users.filter(u => u.id !== id));
+    };
+
+    const hasPermission = (viewName) => {
         if (!user) return false;
-        if (user.role === 'admin') return true;
-        return user.permissions.includes(screen);
+        if (user.role === 'super_admin') return true;
+        return user.permissions.includes(viewName);
     };
 
     return (
-        <AuthContext.Provider value={{
-            user,
-            users,
-            loading,
-            login,
-            logout,
-            canAccess,
-            addUser,
-            editUserPermissions,
-            getAccessibleScreens
-        }}>
+        <AuthContext.Provider value={{ user, loading, login, logout, createUser, updateUser, deleteUser, users, hasPermission }}>
             {children}
         </AuthContext.Provider>
     );

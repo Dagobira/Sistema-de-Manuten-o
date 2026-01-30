@@ -18,7 +18,8 @@ export default function Login() {
                 setLoading(false);
             }
         } catch (err) {
-            setError('Erro ao processar login.');
+            console.error(err);
+            setError(err.message || 'Erro crítico ao processar login.');
             setLoading(false);
         }
     };

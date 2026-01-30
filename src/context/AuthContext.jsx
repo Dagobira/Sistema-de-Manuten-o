@@ -113,11 +113,19 @@ export const AuthProvider = ({ children }) => {
             return { success: true };
         } catch (error) {
             console.error("Erro Login:", error);
-            let msg = 'Erro desconhecido.';
-            if (error.code.includes('invalid-credential') || error.code.includes('wrong-password')) {
-                msg = 'Usuário ou senha incorretos.';
-            } else if (error.code.includes('user-not-found')) {
-                msg = 'Usuário não encontrado.';
+            // Default to the actual error message or code to help debugging
+            let msg = error.message || 'Erro desconhecido.';
+            if (error.code) {
+                msg = `Erro: ${error.code}`; // Show code by default for accurate debugging
+                if (error.code.includes('invalid-credential') || error.code.includes('wrong-password')) {
+                    msg = 'Usuário ou senha incorretos.';
+                } else if (error.code.includes('user-not-found')) {
+                    msg = 'Usuário não encontrado.';
+                } else if (error.code.includes('network-request-failed')) {
+                    msg = 'Erro de conexão/rede.';
+                } else if (error.code.includes('too-many-requests')) {
+                    msg = 'Muitas tentativas. Tente mais tarde.';
+                }
             }
             return { success: false, message: msg };
         }

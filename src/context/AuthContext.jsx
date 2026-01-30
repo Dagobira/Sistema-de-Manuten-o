@@ -5,158 +5,183 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // Mantemos o state users para a UI (tabela de administração), 
+    // mas o login vai ler direto do storage para garantir consistencia.
     const [users, setUsers] = useState([]);
 
-    // Helper para limpar strings (remove espaços e garante string)
-    const clean = (str) => String(str || "").trim();
+    const DB_KEY = 'vx_users_db';
+    const SESSION_KEY = 'vx_session_user';
 
-    // Helper para garantir que o Admin existe
-    const ensureAdmin = (loadedUsers) => {
-        const adminExists = loadedUsers.find(u => clean(u.username) === 'admin');
-        if (!adminExists) {
-            const masterUser = {
-                id: 1,
-                username: 'admin',
-                password: '123', // Será tratado como string na comparação "123"
-                role: 'super_admin',
-                active: true,
-                permissions: ['all']
-            };
-            return [...loadedUsers, masterUser];
+    // --- HELPER: NORMALIZAÇÃO SEGURA ---
+    const normalize = (val) => String(val || "").trim();
+
+    // --- HELPER: LOAD USERS FRESH ---
+    const loadUsersFresh = () => {
+        try {
+            const raw = localStorage.getItem(DB_KEY);
+            const parsed = raw ? JSON.parse(raw) : [];
+
+            // Garante que o Admin Hardcoded sempre exista na lista retornada
+            const adminExists = parsed.find(u => normalize(u.username) === 'admin');
+
+            if (!adminExists) {
+                const master = {
+                    id: 1,
+                    username: 'admin',
+                    password: '123', // Será salvo como string
+                    role: 'super_admin',
+                    active: true,
+                    permissions: ['all']
+                };
+                // Retorna merged
+                return [master, ...parsed];
+            }
+            return parsed;
+        } catch (e) {
+            console.error("Erro critico lendo DB:", e);
+            return [];
         }
-        return loadedUsers;
     };
 
     useEffect(() => {
-        // 1. Carregar Sessão Atual
-        const savedUser = localStorage.getItem('vx_session_user');
-        if (savedUser) {
-            setUser(JSON.parse(savedUser));
+        // 1. Load Session
+        const savedSession = localStorage.getItem(SESSION_KEY);
+        if (savedSession) setUser(JSON.parse(savedSession));
+
+        // 2. Load Initial Users to State
+        const freshUsers = loadUsersFresh();
+        setUsers(freshUsers);
+
+        // Se o DB estava vazio/corrompido e recriamos o admin, salva de volta
+        if (!localStorage.getItem(DB_KEY)) {
+            localStorage.setItem(DB_KEY, JSON.stringify(freshUsers));
         }
 
-        // 2. Carregar Base de Usuários
-        const savedUsersStr = localStorage.getItem('vx_users_db');
-        let loadedUsers = [];
-
-        if (savedUsersStr) {
-            try {
-                loadedUsers = JSON.parse(savedUsersStr);
-            } catch (e) {
-                console.error("Erro ao ler users DB", e);
-                loadedUsers = [];
-            }
-        }
-
-        // Adiciona Admin se não existir
-        const finalUsers = ensureAdmin(loadedUsers);
-
-        setUsers(finalUsers);
         setLoading(false);
     }, []);
 
-    // 3. Persistência Automática: Salva sempre que `users` mudar
-    useEffect(() => {
-        if (!loading && users.length > 0) {
-            localStorage.setItem('vx_users_db', JSON.stringify(users));
-        }
-    }, [users, loading]);
+    // Sync state changes to LocalStorage (para Create/Delete funcionar na UI)
+    const saveUsersToStorage = (newUsers) => {
+        setUsers(newUsers);
+        localStorage.setItem(DB_KEY, JSON.stringify(newUsers));
+    };
 
+    // --- LOGIN COM LEITURA EM TEMPO REAL ---
     const login = (usernameInput, passwordInput) => {
-        const userInput = clean(usernameInput);
-        const passInput = clean(passwordInput);
+        console.log("--- TENTATIVA DE LOGIN ---");
+        console.log("Input Original:", { u: usernameInput, p: passwordInput });
 
-        // 1. Master Hardcoded (Failsafe)
-        if (userInput === 'admin' && passInput === '1234') {
-            const master = { id: 1, username: 'admin', role: 'super_admin', active: true, permissions: ['all'] };
-            setUser(master);
-            localStorage.setItem('vx_session_user', JSON.stringify(master));
-            return { success: true };
-        }
+        // 1. Normalização Imediata
+        const safeUser = normalize(usernameInput);
+        const safePass = normalize(passwordInput);
 
-        // 2. Busca na base (com coerção para string e trim)
-        const found = users.find(u => {
-            const uName = clean(u.username);
-            const uPass = clean(u.password);
-            return uName === userInput && uPass === passInput;
+        console.log("Input Normalizado:", { u: safeUser, p: safePass });
+
+        // 2. Leitura FRESCA do banco (fura o state potencialmente stale)
+        const freshUsersList = loadUsersFresh();
+
+        // 3. Busca exata (String vs String)
+        const found = freshUsersList.find(u => {
+            const dbUser = normalize(u.username);
+            const dbPass = normalize(u.password);
+
+            // Debug de comparação
+            const match = dbUser === safeUser && dbPass === safePass;
+            if (dbUser === safeUser) {
+                console.log(`Usuário Encontrado [${dbUser}]. Senha Correta? ${match}. (DB: '${dbPass}' vs Input: '${safePass}')`);
+            }
+            return match;
         });
 
-        if (found) {
-            if (found.active === false) {
-                return { success: false, message: 'Conta desativada. Contate o suporte.' };
-            }
-
-            const sessionUser = {
-                id: found.id,
-                username: found.username,
-                role: found.role,
-                permissions: found.permissions
-            };
-
-            setUser(sessionUser);
-            localStorage.setItem('vx_session_user', JSON.stringify(sessionUser));
-            return { success: true };
+        if (!found) {
+            console.warn("Login falhou: Usuário ou senha não batem.");
+            return { success: false, message: 'Usuário ou senha incorretos' };
         }
 
-        return { success: false, message: 'Usuário ou senha incorretos' };
+        // 4. Checagem de Status (Active Check)
+        // Se active for undefined, consideramos true. Só bloqueia se for explicitamente false.
+        if (found.active === false) {
+            console.warn("Login falhou: Conta desativada.");
+            return { success: false, message: 'Conta desativada. Contate o administrador.' };
+        }
+
+        // 5. Sucesso
+        console.log("Login SUCESSO!", found);
+        const sessionData = {
+            id: found.id,
+            username: found.username,
+            role: found.role,
+            permissions: found.permissions
+        };
+
+        setUser(sessionData);
+        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+        return { success: true };
     };
 
     const logout = () => {
         setUser(null);
-        localStorage.removeItem('vx_session_user');
+        localStorage.removeItem(SESSION_KEY);
     };
 
+    // --- CREATE USER ---
     const createUser = (username, password, permissions = []) => {
-        const safeUser = clean(username);
-        const safePass = clean(password);
+        const currentList = loadUsersFresh();
+        const safeUser = normalize(username);
+        const safePass = normalize(password);
 
-        if (users.find(u => clean(u.username) === safeUser)) {
+        if (currentList.find(u => normalize(u.username) === safeUser)) {
             return { success: false, message: 'Usuário já existe' };
         }
 
         const newUser = {
             id: Date.now(),
             username: safeUser,
-            password: safePass,
+            password: safePass, // Salva string normalizada
             role: 'user',
-            active: true,
+            active: true, // REGRA DE OURO: Sempre active=true ao criar
             permissions
         };
 
-        setUsers(prev => [...prev, newUser]);
+        const newList = [...currentList, newUser];
+        saveUsersToStorage(newList);
         return { success: true };
     };
 
+    // --- UPDATE USER ---
     const updateUser = (id, updates) => {
-        setUsers(prevUsers => prevUsers.map(u => {
+        const currentList = loadUsersFresh();
+
+        const newList = currentList.map(u => {
             if (u.id === id) {
-                // Logica segura de atualização
-                const updatedUser = { ...u };
+                const updated = { ...u };
 
-                // Atualizar Senha (se fornecida e não vazia)
+                // Senha
                 if (updates.password !== undefined) {
-                    const passStr = clean(updates.password);
-                    if (passStr !== "") updatedUser.password = passStr;
+                    const cleanPass = normalize(updates.password);
+                    if (cleanPass !== "") updated.password = cleanPass;
                 }
 
-                // Atualizar Status
-                if (updates.active !== undefined) {
-                    updatedUser.active = !!updates.active; // Força boolean
-                }
+                // Status
+                if (updates.active !== undefined) updated.active = !!updates.active;
 
-                // Atualizar Permissões
-                if (updates.permissions !== undefined) {
-                    updatedUser.permissions = updates.permissions;
-                }
+                // Permissões
+                if (updates.permissions !== undefined) updated.permissions = updates.permissions;
 
-                return updatedUser;
+                return updated;
             }
             return u;
-        }));
+        });
+
+        saveUsersToStorage(newList);
         return { success: true };
     };
 
     const deleteUser = (id) => {
-        setUsers(prev => prev.filter(u => u.id !== id));
+        const currentList = loadUsersFresh();
+        const newList = currentList.filter(u => u.id !== id);
+        saveUsersToStorage(newList);
     };
 
     const hasPermission = (viewName) => {

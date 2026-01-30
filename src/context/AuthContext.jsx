@@ -169,7 +169,7 @@ export const AuthProvider = ({ children }) => {
 
         } catch (error) {
             console.error("Erro Criar User:", error);
-            let msg = error.message;
+            let msg = error.message || 'Erro desconhecido ao criar usuário.';
             if (error.code === 'auth/email-already-in-use') msg = 'Este usuário já existe.';
             if (error.code === 'auth/weak-password') msg = 'Senha muito fraca (min 6 digitos).';
             return { success: false, message: msg };

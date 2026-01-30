@@ -93,20 +93,20 @@ function AppContent() {
   const renderScreen = () => {
     switch (currentScreen) {
       case 'bi':
-      case 'dashboard': return canView('viewBi') ? <KPIDashboard /> : <Denied />;
+      case 'dashboard': return canView('view_bi') ? <KPIDashboard /> : <Denied />;
 
-      case 'analise': return canView('viewAnalise') ?
+      case 'analise': return canView('view_analise') ?
         <SistemaAnalise rawData={{ prod: appData.prodRows, mov: appData.movRows, stockLab: appData.stockRows, stockMatriz: appData.stockMatriz }} />
         : <Denied />;
 
-      case 'compras': return canView('viewCompras') ? <SistemaCompras /> : <Denied />;
-      case 'remanejamento': return canView('viewRemanejamento') ? <Remanejamento /> : <Denied />;
+      case 'compras': return canView('view_compras') ? <SistemaCompras /> : <Denied />;
+      case 'remanejamento': return canView('view_remanejamento') ? <Remanejamento /> : <Denied />;
 
-      case 'logistica': return canView('viewLogistica') ?
+      case 'logistica': return canView('view_logistica') ?
         <LogisticsDashboard lojasMap={appData.lojasMap} stockRows={appData.stockRows} />
         : <Denied />;
 
-      case 'qualidade': return canView('viewQualidade') ?
+      case 'qualidade': return canView('view_qualidade') ?
         <QualityDashboard defects={appData.defectRows} prodMap={appData.prodMap} filters={{}} />
         : <Denied />;
 

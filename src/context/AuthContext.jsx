@@ -1,202 +1,185 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 
-const AuthContext = createContext();
+export const AuthContext = createContext();
 
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
+    // 1. O ADMIN É A LEI. Ele sempre existe e sempre entra.
+    const MASTER_USER = {
+        id: 'master-001',
+        username: 'admin',
+        password: '1234', // String explícita
+        name: 'Administrador Supremo',
+        role: 'super_admin',
+        active: true, // Sempre ativo
+        permissions: {
+            viewDashboard: true,
+            viewAnalise: true,
+            viewCompras: true,
+            viewRemanejamento: true,
+            viewLogistica: true
+        }
+    };
+
     const [user, setUser] = useState(null);
+    const [usersList, setUsersList] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Mantemos o state users para a UI (tabela de administração), 
-    // mas o login vai ler direto do storage para garantir consistencia.
-    const [users, setUsers] = useState([]);
-
-    const DB_KEY = 'vx_users_db';
-    const SESSION_KEY = 'vx_session_user';
-
-    // --- HELPER: NORMALIZAÇÃO SEGURA ---
-    const normalize = (val) => String(val || "").trim();
-
-    // --- HELPER: LOAD USERS FRESH ---
-    const loadUsersFresh = () => {
-        try {
-            const raw = localStorage.getItem(DB_KEY);
-            const parsed = raw ? JSON.parse(raw) : [];
-
-            // Garante que o Admin Hardcoded sempre exista na lista retornada
-            const adminExists = parsed.find(u => normalize(u.username) === 'admin');
-
-            if (!adminExists) {
-                const master = {
-                    id: 1,
-                    username: 'admin',
-                    password: '123', // Será salvo como string
-                    role: 'super_admin',
-                    active: true,
-                    permissions: ['all']
-                };
-                // Retorna merged
-                return [master, ...parsed];
-            }
-            return parsed;
-        } catch (e) {
-            console.error("Erro critico lendo DB:", e);
-            return [];
-        }
-    };
-
+    // Carrega usuários ao iniciar
     useEffect(() => {
-        // 1. Load Session
-        const savedSession = localStorage.getItem(SESSION_KEY);
-        if (savedSession) setUser(JSON.parse(savedSession));
-
-        // 2. Load Initial Users to State
-        const freshUsers = loadUsersFresh();
-        setUsers(freshUsers);
-
-        // Se o DB estava vazio/corrompido e recriamos o admin, salva de volta
-        if (!localStorage.getItem(DB_KEY)) {
-            localStorage.setItem(DB_KEY, JSON.stringify(freshUsers));
-        }
-
-        setLoading(false);
+        loadUsers();
     }, []);
 
-    // Sync state changes to LocalStorage (para Create/Delete funcionar na UI)
-    const saveUsersToStorage = (newUsers) => {
-        setUsers(newUsers);
-        localStorage.setItem(DB_KEY, JSON.stringify(newUsers));
+    const loadUsers = () => {
+        try {
+            const saved = localStorage.getItem('app_users');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Garante que é um array
+                if (Array.isArray(parsed)) {
+                    setUsersList(parsed);
+                }
+            }
+        } catch (error) {
+            console.error("Erro ao carregar usuários:", error);
+            // Se der erro, zera a lista para não travar o admin
+            setUsersList([]);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // --- LOGIN COM LEITURA EM TEMPO REAL ---
     const login = (usernameInput, passwordInput) => {
-        console.log("--- TENTATIVA DE LOGIN ---");
-        console.log("Input Original:", { u: usernameInput, p: passwordInput });
+        // 🔍 DEBUG - Vamos ver o que está chegando
+        console.log(`Tentativa de Login: User=[${usernameInput}] Pass=[${passwordInput}]`);
 
-        // 1. Normalização Imediata
-        const safeUser = normalize(usernameInput);
-        const safePass = normalize(passwordInput);
+        // Limpeza de entrada (Trim remove espaços acidentais e converte para string)
+        const cleanUser = String(usernameInput).trim();
+        const cleanPass = String(passwordInput).trim();
 
-        console.log("Input Normalizado:", { u: safeUser, p: safePass });
-
-        // 2. Leitura FRESCA do banco (fura o state potencialmente stale)
-        const freshUsersList = loadUsersFresh();
-
-        // 3. Busca exata (String vs String)
-        const found = freshUsersList.find(u => {
-            const dbUser = normalize(u.username);
-            const dbPass = normalize(u.password);
-
-            // Debug de comparação
-            const match = dbUser === safeUser && dbPass === safePass;
-            if (dbUser === safeUser) {
-                console.log(`Usuário Encontrado [${dbUser}]. Senha Correta? ${match}. (DB: '${dbPass}' vs Input: '${safePass}')`);
+        // 1. TENTA LOGAR COMO ADMIN PRIMEIRO (Hardcoded)
+        if (cleanUser === MASTER_USER.username) {
+            if (cleanPass === MASTER_USER.password) {
+                console.log("LOGIN ADMIN SUCESSO!");
+                setUser(MASTER_USER);
+                localStorage.setItem('app_session', JSON.stringify(MASTER_USER));
+                return true;
+            } else {
+                console.error(`Senha admin errada. Esperado: [${MASTER_USER.password}] Recebido: [${cleanPass}]`);
+                throw new Error('Senha incorreta.');
             }
-            return match;
-        });
-
-        if (!found) {
-            console.warn("Login falhou: Usuário ou senha não batem.");
-            return { success: false, message: 'Usuário ou senha incorretos' };
         }
 
-        // 4. Checagem de Status (Active Check)
-        // Se active for undefined, consideramos true. Só bloqueia se for explicitamente false.
-        if (found.active === false) {
-            console.warn("Login falhou: Conta desativada.");
-            return { success: false, message: 'Conta desativada. Contate o administrador.' };
+        // 2. TENTA LOGAR COMO USUÁRIO COMUM
+        // Recarrega a lista do localStorage na hora H para garantir dados frescos
+        let currentList = [];
+        try {
+            const saved = localStorage.getItem('app_users');
+            if (saved) currentList = JSON.parse(saved);
+        } catch (e) { currentList = []; }
+
+        const foundUser = currentList.find(
+            u => String(u.username).trim().toLowerCase() === cleanUser.toLowerCase()
+        );
+
+        if (!foundUser) {
+            console.error("Usuário não encontrado na lista.");
+            throw new Error('Usuário não encontrado.');
         }
 
-        // 5. Sucesso
-        console.log("Login SUCESSO!", found);
-        const sessionData = {
-            id: found.id,
-            username: found.username,
-            role: found.role,
-            permissions: found.permissions
-        };
+        // Verifica se está ativo (Se active for undefined, assume true para não bloquear antigos)
+        if (foundUser.active === false) {
+            throw new Error('Acesso bloqueado pelo administrador.');
+        }
 
-        setUser(sessionData);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
-        return { success: true };
+        // Comparação de senha (Forçando String para resolver o bug do "010203")
+        const storedPass = String(foundUser.password).trim();
+
+        console.log(`Comparando Senhas: Input=[${cleanPass}] vs Stored=[${storedPass}]`);
+
+        if (cleanPass === storedPass) {
+            console.log("LOGIN USUÁRIO SUCESSO!");
+            // Define a sessão completa
+            const sessionUser = { ...foundUser, role: 'user' }; // Garante role de user
+            setUser(sessionUser);
+            localStorage.setItem('app_session', JSON.stringify(sessionUser));
+            return true;
+        } else {
+            throw new Error('Senha incorreta.');
+        }
     };
 
     const logout = () => {
         setUser(null);
-        localStorage.removeItem(SESSION_KEY);
+        localStorage.removeItem('app_session');
+        window.location.href = '/'; // Força recarregamento limpo para limpar estados
     };
 
-    // --- CREATE USER ---
-    const createUser = (username, password, permissions = []) => {
-        const currentList = loadUsersFresh();
-        const safeUser = normalize(username);
-        const safePass = normalize(password);
+    // --- GESTÃO DE USUÁRIOS (ADMIN) ---
 
-        if (currentList.find(u => normalize(u.username) === safeUser)) {
-            return { success: false, message: 'Usuário já existe' };
-        }
-
+    const createUser = (userData) => {
+        // Sempre salva a senha como String limpa
         const newUser = {
-            id: Date.now(),
-            username: safeUser,
-            password: safePass, // Salva string normalizada
-            role: 'user',
-            active: true, // REGRA DE OURO: Sempre active=true ao criar
-            permissions
+            ...userData,
+            password: String(userData.password).trim(),
+            username: String(userData.username).trim(),
+            active: true // Novos nascem ativos
         };
 
-        const newList = [...currentList, newUser];
-        saveUsersToStorage(newList);
-        return { success: true };
+        // Atualiza estado e localStorage
+        const newList = [...usersList, newUser];
+        setUsersList(newList);
+        localStorage.setItem('app_users', JSON.stringify(newList));
+        return newUser;
     };
 
-    // --- UPDATE USER ---
-    const updateUser = (id, updates) => {
-        const currentList = loadUsersFresh();
-
-        const newList = currentList.map(u => {
+    const updateUser = (id, updatedData) => {
+        const newList = usersList.map(u => {
             if (u.id === id) {
-                const updated = { ...u };
-
-                // Senha
-                if (updates.password !== undefined) {
-                    const cleanPass = normalize(updates.password);
-                    if (cleanPass !== "") updated.password = cleanPass;
+                // Se a senha veio vazia, mantém a antiga. Se veio preenchida, limpa e salva.
+                let finalPass = u.password;
+                if (updatedData.password && String(updatedData.password).trim() !== "") {
+                    finalPass = String(updatedData.password).trim();
                 }
 
-                // Status
-                if (updates.active !== undefined) updated.active = !!updates.active;
-
-                // Permissões
-                if (updates.permissions !== undefined) updated.permissions = updates.permissions;
-
-                return updated;
+                return { ...u, ...updatedData, password: finalPass };
             }
             return u;
         });
-
-        saveUsersToStorage(newList);
-        return { success: true };
+        setUsersList(newList);
+        localStorage.setItem('app_users', JSON.stringify(newList));
     };
 
     const deleteUser = (id) => {
-        const currentList = loadUsersFresh();
-        const newList = currentList.filter(u => u.id !== id);
-        saveUsersToStorage(newList);
+        const newList = usersList.filter(u => u.id !== id);
+        setUsersList(newList);
+        localStorage.setItem('app_users', JSON.stringify(newList));
     };
 
-    const hasPermission = (viewName) => {
-        if (!user) return false;
-        if (user.role === 'super_admin') return true;
-        return user.permissions.includes(viewName);
-    };
+    // Verifica sessão salva ao recarregar página
+    useEffect(() => {
+        const session = localStorage.getItem('app_session');
+        if (session) {
+            try {
+                setUser(JSON.parse(session));
+            } catch (e) {
+                localStorage.removeItem('app_session');
+            }
+        }
+    }, []);
 
     return (
-        <AuthContext.Provider value={{ user, loading, login, logout, createUser, updateUser, deleteUser, users, hasPermission }}>
+        <AuthContext.Provider value={{
+            user,
+            usersList,
+            loading,
+            login,
+            logout,
+            createUser,
+            updateUser,
+            deleteUser,
+            isAdmin: user?.role === 'super_admin'
+        }}>
             {children}
         </AuthContext.Provider>
     );
-}
-
-export function useAuth() {
-    return useContext(AuthContext);
-}
+};

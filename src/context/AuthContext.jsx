@@ -28,45 +28,61 @@ export const AuthProvider = ({ children }) => {
     // 1. Monitora estado do Auth
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-            if (currentUser) {
-                // BYPASS ADMIN: Se for o email do chefe, dá poder total imediatamente
-                if (currentUser.email === 'admin@vx.com') {
-                    setUser({
-                        uid: currentUser.uid,
-                        email: currentUser.email,
-                        role: 'super_admin',
-                        username: 'Admin',
-                        permissions: [],
-                        active: true
-                    });
-                    setLoading(false);
-                    return;
-                }
+            try {
+                if (currentUser) {
+                    // BYPASS ADMIN: Se for o email do chefe, dá poder total imediatamente
+                    if (currentUser.email === 'admin@vx.com') {
+                        setUser({
+                            uid: currentUser.uid,
+                            email: currentUser.email,
+                            role: 'super_admin',
+                            username: 'Admin',
+                            permissions: [],
+                            active: true
+                        });
+                        return; // Finally will handle validation
+                    }
 
-                // Para outros mortais, busca no Firestore
-                const docRef = doc(db, "users", currentUser.uid);
-                const docSnap = await getDoc(docRef);
-
-                if (docSnap.exists()) {
-                    const userData = docSnap.data();
-
-                    // Bloqueio de segurança
-                    if (userData.active === false) {
+                    // Para outros mortais, busca no Firestore
+                    const docRef = doc(db, "users", currentUser.uid);
+                    let docSnap;
+                    try {
+                        docSnap = await getDoc(docRef);
+                    } catch (firestoreErr) {
+                        console.error("Erro Firestore:", firestoreErr);
+                        alert("Erro ao conectar no banco de dados. Verifique sua conexão ou permissões.");
                         await signOut(auth);
-                        alert("Sua conta está inativa. Contate o administrador.");
                         setUser(null);
+                        return;
+                    }
+
+                    if (docSnap.exists()) {
+                        const userData = docSnap.data();
+
+                        // Bloqueio de segurança
+                        if (userData.active === false) {
+                            await signOut(auth);
+                            alert("Sua conta está inativa. Contate o administrador.");
+                            setUser(null);
+                        } else {
+                            setUser({ ...userData, uid: currentUser.uid, email: currentUser.email });
+                        }
                     } else {
-                        setUser({ ...userData, uid: currentUser.uid, email: currentUser.email });
+                        // Logou no Auth mas não tem doc no Firestore (erro de integridade)
+                        // await signOut(auth); // Opcional, ou deixa entrar como guest? Melhor deslogar.
+                        console.warn("Usuário sem registro no Firestore.");
+                        await signOut(auth);
+                        setUser(null);
                     }
                 } else {
-                    // Logou no Auth mas não tem doc no Firestore (erro de integridade)
-                    await signOut(auth);
                     setUser(null);
                 }
-            } else {
+            } catch (err) {
+                console.error("Erro fatal Auth:", err);
                 setUser(null);
+            } finally {
+                setLoading(false);
             }
-            setLoading(false);
         });
 
         return () => unsubscribe();

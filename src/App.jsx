@@ -65,7 +65,7 @@ function AppContent() {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>
         <div style={{ fontSize: '40px', marginBottom: '20px' }} className="spin">🔄</div>
-        <h2 style={{ color: '#64748b' }}>Carregando Sistema...</h2>
+        <h2 style={{ color: '#64748b' }}>Conectando ao Servidor...</h2>
         <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }`}</style>
       </div>
     );

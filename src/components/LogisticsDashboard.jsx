@@ -272,8 +272,10 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
     const labSnapMap = buildLabSnapshotMap(stockRows);
 
     // 2. Definir Período (Últimos 3 meses ou tudo)
+    // CORREÇÃO: Usar TODO o histórico disponível para alinhar com a tela de Análise
+    // Antes estava pegando apenas os ultimos 3 meses, o que zerava a média de itens de baixo giro.
     const availableMonths = buildMonthOptions(movRows);
-    const mesInicio = availableMonths.length >= 3 ? availableMonths[availableMonths.length - 3] : availableMonths[0];
+    const mesInicio = availableMonths[0];
     const mesFim = availableMonths[availableMonths.length - 1];
 
     // 3. Calcular usando Engine oficial
@@ -296,10 +298,10 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
         skuList: []
       },
       params: {
-        coberturaAlvoMeses: 1,
+        coberturaAlvoMeses: 3, // ALINHADO COM ANALISE (era 1)
         regra12m: 12, // Se não vendeu em 12m, alvo = 0
         regra6m: 6,   // Se não vendeu em 6m, alvo = 1 (se tiver estoque)
-        transferenciaMinima: 1
+        transferenciaMinima: 2 // ALINHADO COM ANALISE (era 1)
       }
     });
 

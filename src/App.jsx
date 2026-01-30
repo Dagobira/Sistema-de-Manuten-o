@@ -60,6 +60,11 @@ function AppContent() {
     init();
   }, []);
 
+  // Reset screen on login/user change to avoid stuck state from previous user
+  useEffect(() => {
+    if (user) setCurrentScreen('analise');
+  }, [user?.uid]);
+
   // 1. TELA DE CARREGAMENTO GLOBAL
   if (authLoading || dataLoading) {
     return (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { loadCSV } from './lib/csv';
-import { buildLojasMap, normalizeDefectRows, buildProductMap } from './lib/engine';
+import { buildLojasMap, normalizeDefectRows, buildProductMap, normalizeMovRows } from './lib/engine'; // Import normalizeMovRows if needed locally, but engine handles it inside compute mostly. Actually we load csv and pass to state.
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -22,7 +22,7 @@ function AppContent() {
   const [appData, setAppData] = useState({});
   const [currentScreen, setCurrentScreen] = useState('analise');
 
-  // --- 1. MODO DARK RESTAURADO ---
+  // --- 1. MODO DARK RESTAURADO (User Requirement) ---
   const [theme, setTheme] = useState('light');
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -32,7 +32,6 @@ function AppContent() {
     async function init() {
       console.log("🚀 [App] Iniciando carregamento de dados...");
       try {
-        // --- 2. CARREGAMENTO DOS DADOS (INCLUINDO STOCKMATRIZ) ---
         const [prod, mov, stock, stockMatriz, defeitos, lojas] = await Promise.all([
           loadCSV('/data/stg_produto.csv'),
           loadCSV('/data/stg_lab_mov_mensal.csv'),
@@ -42,16 +41,26 @@ function AppContent() {
           loadCSV('/data/stg_lojas.csv')
         ]);
 
+        // Process data using engine functions
         const lojasMap = buildLojasMap(lojas || []);
         const prodMap = buildProductMap(prod || []);
         const defectRows = normalizeDefectRows(defeitos || [], lojasMap);
+        // movRows will be normalized inside components via engine, or we can pre-normalize if needed. 
+        // Current standard is passing raw csv rows to some, but Logistics uses engine which expects raw rows? 
+        // No, engine.normalizeMovRows is usually called by component or app. 
+        // Let's use normalizeMovRows here to be safe and consistent with previous versions if applicable.
+        // Actually, looking at engine.js I just wrote, computeFelipeTable expects 'movRows' with 'Laboratorio', 'Mes', 'Vendas'.
+        // loadCSV returns raw objects with keys like 'PecasVendidas'.
+        // So we MUST normalize movRows here or inside the components.
+        // To be safe and strict: let's normalize here so everyone gets clean data.
+        const cleanMovRows = normalizeMovRows(mov || []);
 
         setAppData({
           stockRows: stock || [],
-          stockMatriz: stockMatriz || [], // Garante que stockMatriz vai para o state
+          stockMatriz: stockMatriz || [], // CRÍTICO: Garantido aqui
           defectRows: defectRows || [],
           lojasMap: lojasMap,
-          movRows: mov || [],
+          movRows: cleanMovRows, // Passando já normalizado
           prodRows: prod || [],
           prodMap: prodMap
         });
@@ -101,14 +110,14 @@ function AppContent() {
       case 'compras': return canView('view_compras') ? <SistemaCompras /> : <Denied />;
       case 'remanejamento': return canView('view_remanejamento') ? <Remanejamento /> : <Denied />;
 
-      // --- 3. CORREÇÃO DA ROTA LOGÍSTICA ---
+      // --- 2. LOGISTICA CONECTADA (User Requirement) ---
       case 'logistica': return canView('view_logistica') ?
         <LogisticsDashboard
           lojasMap={appData.lojasMap}
           stockRows={appData.stockRows}
-          prodMap={appData.prodMap}
-          movRows={appData.movRows}
-          stockMatriz={appData.stockMatriz}
+          prodMap={appData.prodMap}        // Passado
+          movRows={appData.movRows}        // Passado
+          stockMatriz={appData.stockMatriz} // Passado
         />
         : <Denied />;
 
@@ -124,13 +133,14 @@ function AppContent() {
   };
 
   return (
-    // Aplicação do tema no container principal
+    // Atributo data-theme aplicado
     <div className="page" data-theme={theme}>
       <div className="appShell">
         <Sidebar
           currentScreen={currentScreen}
           onNavigate={setCurrentScreen}
           user={user}
+          // Funções de tema passadas
           theme={theme}
           toggleTheme={toggleTheme}
         />

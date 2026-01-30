@@ -30,6 +30,17 @@ function parseNumber(val) {
   return isNaN(n) ? 0 : n;
 }
 
+// --- NOVO: NORMALIZAÇÃO DE CHAVES (Para corrigir o Match de Lojas) ---
+export function normalizeKey(str) {
+  if (!str) return "";
+  return String(str)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+    .replace(/\s+/g, "") // Remove TODOS os espaços (trim não basta)
+    .replace(/[^a-z0-9]/g, ""); // Apenas letras e números
+}
+
 // ---------------------------------------------------------
 // PARSERS
 // ---------------------------------------------------------
@@ -66,7 +77,11 @@ export function buildLabSnapshotMap(csvData) {
     const sku = findValue(row, ["SKU", "Codigo"]);
     const lab = findValue(row, ["Laboratorio", "Lab"]);
     if (!sku || !lab) return;
-    const key = `${lab}__${sku}`;
+
+    // CORREÇÃO: Usar normalizeKey
+    const labKey = normalizeKey(lab);
+    const key = `${labKey}__${sku}`;
+
     const qtd = parseNumber(findValue(row, ["QtdEstoque", "Estoque", "Saldo"])) || 0;
     map.set(key, qtd);
   });
@@ -76,8 +91,12 @@ export function buildLabSnapshotMap(csvData) {
 export function buildLojasMap(csvData) {
   const map = new Map();
   csvData.forEach(row => {
-    const chave = findValue(row, ["Nome_Sistema", "Nome Sistema", "Laboratorio"]);
-    if (!chave) return;
+    const chaveRaw = findValue(row, ["Nome_Sistema", "Nome Sistema", "Laboratorio"]);
+    if (!chaveRaw) return;
+
+    // CORREÇÃO: Usar normalizeKey na chave do mapa
+    const chave = normalizeKey(chaveRaw);
+
     map.set(chave, {
       id: findValue(row, ["ID_Loja", "ID"]),
       nomeFantasia: findValue(row, ["Nome_Fantasia", "Nome Fantasia", "Loja"]),
@@ -89,25 +108,6 @@ export function buildLojasMap(csvData) {
   });
   return map;
 }
-
-export function buildTecnicosMap(csvData) {
-  const map = new Map();
-  csvData.forEach(row => {
-    const nome = findValue(row, ["Nome", "Tecnico"]);
-    if (!nome) return;
-    map.set(nome.toLowerCase().trim(), {
-      id: row["ID_Tecnico"],
-      nome: row["Nome"],
-      idLoja: row["ID_Loja_Atual"],
-      status: row["Status"]
-    });
-  });
-  return map;
-}
-
-// ---------------------------------------------------------
-// NORMALIZADORES
-// ---------------------------------------------------------
 
 export function normalizeMovRows(csvData) {
   return csvData.map((row) => {
@@ -138,7 +138,8 @@ export function normalizeMovRows(csvData) {
     const labName = findValue(row, ["Laboratorio", "Lab"]) || "Desconhecido";
 
     return {
-      Laboratorio: labName,
+      Laboratorio: labName, // Mantém original para exibição se necessário
+      LaboratorioKey: normalizeKey(labName), // Chave normalizada para JOIN
       SKU: String(findValue(row, ["SKU", "Codigo"]) || ""),
       Mes: mes || "",
       Vendas: vendas,
@@ -151,7 +152,7 @@ export function normalizeMovRows(csvData) {
 export function normalizeDefectRows(csvData, lojasMap) {
   return csvData.map(row => {
     const labRaw = findValue(row, ["Laboratório", "Laboratorio", "Laboratorio "]);
-    const lojaConfig = lojasMap.get(labRaw);
+    const lojaConfig = lojasMap.get(normalizeKey(labRaw)); // Usa normalizeKey para buscar
     return {
       Data: findValue(row, ["Data"]),
       Motivo: findValue(row, ["Outras Saidas", "Motivo"]),
@@ -182,13 +183,8 @@ export function buildMonthOptions(movRows) {
   return Array.from(s).sort();
 }
 
-export function parseSkuInput(text) {
-  if (!text) return [];
-  return text.split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
-}
-
 // ---------------------------------------------------------
-// 🧠 O CÉREBRO PRINCIPAL (Updated)
+// 🧠 O CÉREBRO PRINCIPAL (Updated com NormalizeKey)
 // ---------------------------------------------------------
 
 export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, filters, params }) {
@@ -199,15 +195,26 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
     if (!r.Mes) return false;
     if (mesInicio && r.Mes < mesInicio) return false;
     if (mesFim && r.Mes > mesFim) return false;
-    if (labs.length > 0 && !labs.includes(r.Laboratorio)) return false;
+
+    // Filtro de Lab considera a chave normalizada se available, ou faz match flexível
+    if (labs.length > 0) {
+      // Assumindo que 'labs' venha com nomes 'bonitos', precisamos normalizar para comparar
+      // Mas na prática, o filtro de labs vem do MultiSelect. Vamos assumir que ele passa nomes originais.
+      // Melhor não normalizar aqui se o filtro usar o nome exato do dropdown.
+      if (!labs.includes(r.Laboratorio)) return false;
+    }
+
     if (skuList && skuList.length > 0 && !skuList.includes(r.SKU)) return false;
     return true;
   });
 
-  // 2. Agrupar
+  // 2. Agrupar (Usando Chave Normalizada)
   const groupMap = new Map();
   filteredMovs.forEach(r => {
-    const key = `${r.Laboratorio}__${r.SKU}`;
+    // CORREÇÃO CRÍTICA: Key usa o nome normalizado
+    const labKey = r.LaboratorioKey || normalizeKey(r.Laboratorio);
+    const key = `${labKey}__${r.SKU}`;
+
     if (!groupMap.has(key)) {
       groupMap.set(key, { vendas: 0, outras: 0, total: 0 });
     }
@@ -221,16 +228,20 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
   let targetLabs = labs.length > 0 ? labs : buildLabOptions(movRows);
 
   targetLabs.forEach(labName => {
+    const targetLabKey = normalizeKey(labName); // Normaliza para o loop
+
     prodMap.forEach((prodData, sku) => {
       if (categorias.length > 0 && !categorias.includes(prodData.categoria)) return;
       if (skuList && skuList.length > 0 && !skuList.includes(sku)) return;
 
-      const key = `${labName}__${sku}`;
+      // CORREÇÃO CRÍTICA: Busca pela chave normalizada
+      const key = `${targetLabKey}__${sku}`;
+
       const stats = groupMap.get(key) || { vendas: 0, outras: 0, total: 0 };
-      const estLab = labSnapMap.get(key) || 0;
+      const estLab = labSnapMap.get(key) || 0; // labSnapMap já usa key normalizada tbm
       const estMatriz = matrizMap.get(sku) || 0;
 
-      // Calcular número de meses
+      // Calcular número de meses (Mantido)
       let mesesCount = 1;
       if (mesInicio && mesFim) {
         const d1 = new Date(mesInicio + "-01");
@@ -244,7 +255,7 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
       const mediaMensal = stats.total / mesesCount;
       const cobertura = mediaMensal > 0 ? (estLab / mediaMensal) : (estLab > 0 ? 999 : 0);
 
-      // --- NOVA LÓGICA (SYNC COM COMPRAS) ---
+      // --- LÓGICA MANTIDA (SYNC COM COMPRAS) ---
       let alvo = 0;
       let sugestao = 0;
       let devolver = 0;
@@ -307,7 +318,8 @@ export function computeFelipeTable({ prodMap, matrizMap, labSnapMap, movRows, fi
 
       results.push({
         id: key,
-        Laboratorio: labName,
+        Laboratorio: labName, // Nome bonito original
+        LaboratorioKey: targetLabKey, // Chave normalizada para debug
         SKU: sku,
         Descricao: prodData.descricao,
         Categoria: prodData.categoria,

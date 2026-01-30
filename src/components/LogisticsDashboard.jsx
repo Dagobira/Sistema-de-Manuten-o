@@ -486,40 +486,47 @@ export default function LogisticsDashboard({ lojasMap, stockRows, prodMap, movRo
             </div>
 
             <div className="modal-body">
-              {selectedLoja.items && selectedLoja.items.length > 0 ? (
-                <table className="order-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: "15%" }}>SKU</th>
-                      <th style={{ width: "40%" }}>Produto</th>
-                      <th style={{ width: "15%" }}>Categoria</th>
-                      <th style={{ width: "15%", textAlign: "center" }}>Enviar</th>
-                      <th style={{ width: "15%", textAlign: "center" }}>Devolver</th>
+              {/* DEBUG: Mostrar TODOS os itens para auditoria, não apenas os de reposição */}
+              <table className="order-table">
+                <thead>
+                  <tr>
+                    <th style={{ width: "10%" }}>SKU</th>
+                    <th style={{ width: "30%" }}>Produto</th>
+                    <th style={{ width: "10%", textAlign: "center" }}>Estoque</th>
+                    <th style={{ width: "10%", textAlign: "center" }}>Venda Média</th>
+                    <th style={{ width: "10%", textAlign: "center" }}>Alvo</th>
+                    <th style={{ width: "10%", textAlign: "center" }}>Enviar</th>
+                    <th style={{ width: "10%", textAlign: "center" }}>Devolver</th>
+                    <th style={{ width: "10%", textAlign: "left" }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedLoja.items && selectedLoja.items.length > 0 ? selectedLoja.items : calculatedStock.filter(r => {
+                    // Recalcula items para esta loja caso a lista filtrada esteja vazia (para mostrar o 'why' do zero)
+                    const targetLabClean = superClean(selectedLoja.labKey || Object.keys(Object.fromEntries(lojasMap)).find(k => lojasMap.get(k) === selectedLoja));
+                    const rowLabClean = superClean(r.Laboratorio);
+                    return rowLabClean && targetLabClean && (rowLabClean === targetLabClean || rowLabClean.includes(targetLabClean) || targetLabClean.includes(rowLabClean));
+                  })).sort((a, b) => b.Reposicao - a.Reposicao).map((item, idx) => (
+                    <tr key={idx} style={{ opacity: item.Reposicao > 0 ? 1 : 0.6 }}>
+                      <td><span className="sku-badge">{item.SKU}</span></td>
+                      <td style={{ fontWeight: "500", fontSize: '12px' }}>{item.Descricao}</td>
+                      <td style={{ textAlign: "center" }}>{item.EstoqueLabAtual}</td>
+                      <td style={{ textAlign: "center" }}>{item.MediaMensalConsumo?.toFixed(1)}</td>
+                      <td style={{ textAlign: "center" }}>{item.EstoqueAlvo}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {item.Reposicao > 0 ? <span className="qty-badge">{item.Reposicao}</span> : '-'}
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        {item.Remanejamento > 0 ? <span className="qty-badge reman">{item.Remanejamento}</span> : '-'}
+                      </td>
+                      <td style={{ fontSize: '11px' }}>{item.Status}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {selectedLoja.items.map((item, idx) => (
-                      <tr key={idx}>
-                        <td><span className="sku-badge">{item.SKU}</span></td>
-                        <td style={{ fontWeight: "500" }}>{item.Descricao}</td>
-                        <td style={{ color: "var(--textSec)", fontSize: "12px" }}>{item.Categoria}</td>
-                        <td style={{ textAlign: "center" }}>
-                          {item.Reposicao > 0 ? <span className="qty-badge">{item.Reposicao}</span> : '-'}
-                        </td>
-                        <td style={{ textAlign: "center" }}>
-                          {item.Remanejamento > 0 ? <span className="qty-badge reman">{item.Remanejamento}</span> : '-'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="empty-state">
-                  <div className="empty-state-icon">✅</div>
-                  <div className="empty-state-title">Estoque Regularizado</div>
-                  <p className="empty-state-text">Esta loja não precisa de reposição hoje.</p>
-                </div>
-              )}
+                  ))}
+                  {(selectedLoja.items?.length === 0 && calculatedStock.length === 0) && (
+                    <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px' }}>Nenhum dado encontrado para esta loja. Verifique o nome do laboratório no CSV.</td></tr>
+                  )}
+                </tbody>
+              </table>
             </div>
 
             <div className="modal-footer">

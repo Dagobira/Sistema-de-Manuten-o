@@ -52,7 +52,7 @@ export default function UserManagement() {
         // Transforma array ['view_analise'] em objeto { analise: true }
         const userPerms = {};
         permList.forEach(p => {
-            userPerms[p.key] = u.permissions.includes(`view_${p.key}`);
+            userPerms[p.key] = (u.permissions || []).includes(`view_${p.key}`);
         });
         setEditForm({
             password: '', // Senha vazia = não alterar
@@ -140,7 +140,7 @@ export default function UserManagement() {
                                     {u.role === 'super_admin' ? (
                                         <span style={permBadge}>TUDO</span>
                                     ) : (
-                                        u.permissions.map(p => <span key={p} style={permBadge}>{p.replace('view_', '')}</span>)
+                                        (u.permissions || []).map(p => <span key={p} style={permBadge}>{p.replace('view_', '')}</span>)
                                     )}
                                 </div>
                             </td>

@@ -16,6 +16,9 @@ import UserManagement from './components/UserManagement';
 
 // ONLY LOGISTICS ENABLED (STABLE BUILD)
 import LogisticsDashboard from './components/LogisticsDashboard';
+import KPIDashboard from './components/KPIDashboard';
+import SistemaAnalise from './components/SistemaAnalise';
+import SistemaCompras from './components/SistemaCompras';
 import './App.css';
 
 // DUMMY COMPONENTS FOR BROKEN MODULES
@@ -35,9 +38,6 @@ const MaintenanceMsg = ({ name }) => (
   </div>
 );
 
-const KPIDashboard = () => <MaintenanceMsg name="BI Dashboard" />;
-const SistemaAnalise = () => <MaintenanceMsg name="Análise de Estoque" />;
-const SistemaCompras = () => <MaintenanceMsg name="Sugestão de Compras" />;
 const Remanejamento = () => <MaintenanceMsg name="Remanejamento" />;
 const QualityDashboard = () => <MaintenanceMsg name="Qualidade" />;
 
@@ -71,6 +71,7 @@ function AppContent() {
           stockMatriz: stockMatriz || [],
           stockRows: stockLab || [],
           movRows: normalizeMovRows(mov || []),
+          rawMov: mov || [],
           defectRows: normalizeDefectRows(defeitos || [], lojasMap),
           lojasMap
         });
@@ -89,7 +90,13 @@ function AppContent() {
   const renderScreen = () => {
     switch (currentScreen) {
       case 'bi': return <KPIDashboard />;
-      case 'analise': return <SistemaAnalise />;
+      case 'analise':
+        return <SistemaAnalise rawData={{
+          prod: appData.prodRows,
+          mov: appData.rawMov,
+          stockLab: appData.stockRows,
+          stockMatriz: appData.stockMatriz
+        }} />;
       case 'compras': return <SistemaCompras />;
       case 'remanejamento': return <Remanejamento />;
       case 'logistica':

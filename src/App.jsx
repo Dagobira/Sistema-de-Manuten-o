@@ -1,72 +1,81 @@
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { loadCSV } from './lib/csv';
-import { buildLojasMap, normalizeDefectRows, buildProductMap, normalizeMovRows } from './lib/engine'; // Import normalizeMovRows if needed locally, but engine handles it inside compute mostly. Actually we load csv and pass to state.
+import {
+  buildProductMap,
+  buildMatrizMap,
+  buildLojasMap,
+  normalizeMovRows,
+  normalizeDefectRows
+} from './lib/engine';
 
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
-import KPIDashboard from './components/KPIDashboard';
-import SistemaCompras from './components/SistemaCompras';
-import SistemaAnalise from './components/SistemaAnalise';
-import Remanejamento from './components/Remanejamento';
-import LogisticsDashboard from './components/LogisticsDashboard';
-import QualityDashboard from './components/QualityDashboard';
 
+// ONLY LOGISTICS ENABLED (STABLE BUILD)
+import LogisticsDashboard from './components/LogisticsDashboard';
 import './App.css';
+
+// DUMMY COMPONENTS FOR BROKEN MODULES
+const MaintenanceMsg = ({ name }) => (
+  <div style={{
+    padding: '40px',
+    textAlign: 'center',
+    color: '#d97706',
+    background: '#fffbeb',
+    borderRadius: '8px',
+    border: '1px solid #fcd34d',
+    marginTop: '20px'
+  }}>
+    <h3 style={{ marginBottom: '10px' }}>⚠️ Módulo em Manutenção</h3>
+    <p>O módulo <strong>{name}</strong> foi temporariamente desativado para correção de erros críticos de sistema.</p>
+    <p style={{ fontSize: '0.9em', marginTop: '10px' }}>Por favor, utilize o painel de <strong>Logística</strong>.</p>
+  </div>
+);
+
+const KPIDashboard = () => <MaintenanceMsg name="BI Dashboard" />;
+const SistemaAnalise = () => <MaintenanceMsg name="Análise de Estoque" />;
+const SistemaCompras = () => <MaintenanceMsg name="Sugestão de Compras" />;
+const Remanejamento = () => <MaintenanceMsg name="Remanejamento" />;
+const QualityDashboard = () => <MaintenanceMsg name="Qualidade" />;
 
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [dataLoading, setDataLoading] = useState(true);
   const [appData, setAppData] = useState({});
-  const [currentScreen, setCurrentScreen] = useState('analise');
+  const [currentScreen, setCurrentScreen] = useState('logistica'); // Default to Working Module
 
-  // --- 1. MODO DARK RESTAURADO (User Requirement) ---
   const [theme, setTheme] = useState('light');
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-  };
+  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   useEffect(() => {
     async function init() {
-      console.log("🚀 [App] Iniciando carregamento de dados...");
       try {
-        const [prod, mov, stock, stockMatriz, defeitos, lojas] = await Promise.all([
+        const [prod, stockMatriz, mov, stockLab, lojas, defeitos] = await Promise.all([
           loadCSV('/data/stg_produto.csv'),
+          loadCSV('/data/stg_estoque_matriz.csv'),
           loadCSV('/data/stg_lab_mov_mensal.csv'),
           loadCSV('/data/stg_estoque_lab.csv'),
-          loadCSV('/data/stg_estoque_matriz.csv'),
-          loadCSV('/data/stg_defeitos.csv'),
-          loadCSV('/data/stg_lojas.csv')
+          loadCSV('/data/stg_lojas.csv'),
+          loadCSV('/data/stg_defeitos.csv')
         ]);
 
-        // Process data using engine functions
         const lojasMap = buildLojasMap(lojas || []);
         const prodMap = buildProductMap(prod || []);
-        const defectRows = normalizeDefectRows(defeitos || [], lojasMap);
-        // movRows will be normalized inside components via engine, or we can pre-normalize if needed. 
-        // Current standard is passing raw csv rows to some, but Logistics uses engine which expects raw rows? 
-        // No, engine.normalizeMovRows is usually called by component or app. 
-        // Let's use normalizeMovRows here to be safe and consistent with previous versions if applicable.
-        // Actually, looking at engine.js I just wrote, computeFelipeTable expects 'movRows' with 'Laboratorio', 'Mes', 'Vendas'.
-        // loadCSV returns raw objects with keys like 'PecasVendidas'.
-        // So we MUST normalize movRows here or inside the components.
-        // To be safe and strict: let's normalize here so everyone gets clean data.
-        const cleanMovRows = normalizeMovRows(mov || []);
 
         setAppData({
-          stockRows: stock || [],
-          stockMatriz: stockMatriz || [], // CRÍTICO: Garantido aqui
-          defectRows: defectRows || [],
-          lojasMap: lojasMap,
-          movRows: cleanMovRows, // Passando já normalizado
           prodRows: prod || [],
-          prodMap: prodMap
+          prodMap,
+          stockMatriz: stockMatriz || [],
+          stockRows: stockLab || [],
+          movRows: normalizeMovRows(mov || []),
+          defectRows: normalizeDefectRows(defeitos || [], lojasMap),
+          lojasMap
         });
-        console.log("✅ [App] Dados carregados! Matriz Size:", stockMatriz?.length);
       } catch (e) {
-        console.error("❌ [App] Erro fatal:", e);
+        console.error("Load error", e);
       } finally {
         setDataLoading(false);
       }
@@ -74,96 +83,37 @@ function AppContent() {
     init();
   }, []);
 
-  useEffect(() => {
-    if (user) setCurrentScreen('analise');
-  }, [user?.uid]);
-
-  if (authLoading || dataLoading) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', fontFamily: 'sans-serif' }}>
-        <div style={{ fontSize: '40px', marginBottom: '20px' }} className="spin">🔄</div>
-        <h2 style={{ color: '#64748b' }}>Conectando ao Servidor...</h2>
-        <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } .spin { animation: spin 1s linear infinite; }`}</style>
-      </div>
-    );
-  }
-
+  if (authLoading || dataLoading) return <div>Loading...</div>;
   if (!user) return <Login />;
-
-  const canView = (perm) => {
-    if (user.role === 'super_admin') return true;
-    const map = { 'viewDashboard': 'view_bi' };
-    const strictKey = map[perm] || perm;
-    if (Array.isArray(user.permissions)) return user.permissions.includes(strictKey);
-    return user.permissions?.[perm];
-  };
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'bi':
-      case 'dashboard': return canView('view_bi') ? <KPIDashboard /> : <Denied />;
-
-      case 'analise': return canView('view_analise') ?
-        <SistemaAnalise rawData={{ prod: appData.prodRows, mov: appData.movRows, stockLab: appData.stockRows, stockMatriz: appData.stockMatriz }} />
-        : <Denied />;
-
-      case 'compras': return canView('view_compras') ? <SistemaCompras /> : <Denied />;
-      case 'remanejamento': return canView('view_remanejamento') ? <Remanejamento /> : <Denied />;
-
-      // --- 2. LOGISTICA CONECTADA (User Requirement) ---
-      case 'logistica': return canView('view_logistica') ?
-        <LogisticsDashboard
+      case 'bi': return <KPIDashboard />;
+      case 'analise': return <SistemaAnalise />;
+      case 'compras': return <SistemaCompras />;
+      case 'remanejamento': return <Remanejamento />;
+      case 'logistica':
+        return <LogisticsDashboard
           lojasMap={appData.lojasMap}
           stockRows={appData.stockRows}
-          prodMap={appData.prodMap}        // Passado
-          movRows={appData.movRows}        // Passado
-          stockMatriz={appData.stockMatriz} // Passado
-        />
-        : <Denied />;
-
-      case 'qualidade': return canView('view_qualidade') ?
-        <QualityDashboard defects={appData.defectRows} prodMap={appData.prodMap} filters={{}} />
-        : <Denied />;
-
-      case 'users':
-      case 'admin_users': return user.role === 'super_admin' ? <UserManagement /> : <Denied />;
-
-      default: return <KPIDashboard />;
+          prodMap={appData.prodMap}
+          movRows={appData.movRows}
+          stockMatriz={appData.stockMatriz}
+        />;
+      case 'qualidade': return <QualityDashboard />;
+      case 'users': return <UserManagement />;
+      default: return <LogisticsDashboard />;
     }
   };
 
   return (
-    // Atributo data-theme aplicado
     <div className="page" data-theme={theme}>
       <div className="appShell">
-        <Sidebar
-          currentScreen={currentScreen}
-          onNavigate={setCurrentScreen}
-          user={user}
-          // Funções de tema passadas
-          theme={theme}
-          toggleTheme={toggleTheme}
-        />
-        <main className="main">
-          <Header title={currentScreen.toUpperCase()} />
-          {renderScreen()}
-        </main>
+        <Sidebar currentScreen={currentScreen} onNavigate={setCurrentScreen} user={user} theme={theme} toggleTheme={toggleTheme} />
+        <main className="main"><Header title={currentScreen} />{renderScreen()}</main>
       </div>
     </div>
   );
 }
 
-const Denied = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#EF4444', background: '#FEF2F2', borderRadius: '16px', border: '2px dashed #EF4444' }}>
-    <div style={{ fontSize: '4rem', marginBottom: '10px' }}>⛔</div>
-    <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Acesso Negado</h2>
-  </div>
-);
-
-export default function App() {
-  return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
-  );
-}
+export default function App() { return <AuthProvider><AppContent /></AuthProvider>; }

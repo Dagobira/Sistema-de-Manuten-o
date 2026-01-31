@@ -1,0 +1,1 @@
+const a={COBERTURA_ALVO_MESES:3,TRANSFERENCIA_MINIMA:2,REGRA_6M:6,REGRA_12M:12},e=["Segunda-Feira","Terça-Feira","Quarta-Feira","Quinta-Feira","Sexta-Feira"],E={red:"#E53935",blue:"#1E88E5",green:"#43A047",orange:"#FF9800",purple:"#9C27B0"};export{a as B,E as C,e as W};

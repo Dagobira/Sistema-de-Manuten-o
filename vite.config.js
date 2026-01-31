@@ -2,61 +2,32 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   plugins: [react()],
 
-  // Configuração para GitHub Pages
-  base: mode === 'production' ? '/Sistema-de-Manuten-o/' : '/',
-
-  // Otimizações de build
-  build: {
-    // Aumentar limite de warning para chunks grandes
-    chunkSizeWarningLimit: 1000,
-
-    // Sourcemaps apenas em dev
-    sourcemap: mode !== 'production',
-
-    // Minificação com terser
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
+  // Isso aqui ajuda a resolver problemas de imports antigos
+  resolve: {
+    alias: {
+      // Força o sistema a resolver caminhos corretamente
+      src: "/src",
     },
+  },
 
-    // Configuração de chunks manual para otimização
+  build: {
+    // Aumenta o limite de aviso (para não te assustar com warnings)
+    chunkSizeWarningLimit: 1600,
+
+    // Configurações simples e seguras para o Rollup
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'firebase-vendor': [
-            'firebase/app',
-            'firebase/auth',
-            'firebase/firestore'
-          ],
-          'chart-vendor': ['react-window'],
-          'pdf-vendor': ['jspdf', 'jspdf-autotable']
-        }
-      }
-    }
+        // Garante que bibliotecas de terceiros fiquem em arquivos separados
+        // mas deixa o Vite decidir como fazer isso (menos chance de erro)
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            return 'vendor';
+          }
+        },
+      },
+    },
   },
-
-  // Configuração de servidor dev
-  server: {
-    port: 3000,
-    open: true,
-    host: true
-  },
-
-  // Otimização de dependências
-  optimizeDeps: {
-    include: [
-      'react',
-      'react-dom',
-      'firebase/app',
-      'firebase/auth',
-      'firebase/firestore'
-    ]
-  }
-}))
+})

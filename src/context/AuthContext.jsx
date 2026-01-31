@@ -31,7 +31,7 @@ export const AuthProvider = ({ children }) => {
             try {
                 if (currentUser) {
                     // BYPASS ADMIN: Se for o email do chefe, dá poder total imediatamente
-                    if (currentUser.email === 'admin@vx.com') {
+                    if (currentUser.email === 'addmin@vx.com') {
                         setUser({
                             uid: currentUser.uid,
                             email: currentUser.email,

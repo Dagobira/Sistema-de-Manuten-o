@@ -3,16 +3,17 @@ import React from 'react';
 export default function Header({ title }) {
     const displayTitle = () => {
         const map = {
-            'ANALISE': 'Análise de Laboratórios',
-            'QUALIDADE': 'Qualidade',
-            'LOGISTICA': 'Calendário de Atendimento',
-            'COMPRAS': 'Compras Manutenção',
-            'REMANEJAMENTO': 'Remanejamento Inteligente',
-            'ADMIN_USERS': 'Gestão de Usuários',
-            'DASHBOARD': 'BI Performance',
-            'BI': 'BI Performance'
+            'analise': 'Análise de Laboratórios',
+            'qualidade': 'Qualidade',
+            'logistica': 'Calendário de Atendimento',
+            'compras': 'Compras Manutenção',
+            'remanejamento': 'Remanejamento Inteligente',
+            'users': 'Gestão de Usuários',
+            'kpi': 'BI Performance',
+            'dashboard': 'BI Performance',
+            'bi': 'BI Performance'
         };
-        return map[title] || title;
+        return map[title?.toLowerCase()] || title;
     };
 
     return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 
 export default function Sidebar({ currentScreen, onNavigate, user, theme, toggleTheme }) {
     const { logout } = useAuth();

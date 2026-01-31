@@ -1,0 +1,23 @@
+﻿
+> vite-react-starter@0.0.0 lint
+> eslint .
+
+
+C:\Sitema de Manuten├º├úo\src\components\KPIDashboard.jsx
+  232:8  warning  React Hook useMemo has unnecessary dependencies: 'filters' and 'getLabStats'. Either exclude them or remove the dependency array  react-hooks/exhaustive-deps
+  332:8  warning  React Hook useMemo has a missing dependency: 'getLabStats'. Either include it or remove the dependency array                      react-hooks/exhaustive-deps
+  375:8  warning  React Hook useMemo has a missing dependency: 'data.prodMap'. Either include it or remove the dependency array                     react-hooks/exhaustive-deps
+
+C:\Sitema de Manuten├º├úo\src\components\Login.jsx
+  12:13  error  'setLoading' is not defined   no-undef
+  13:47  error  'password' is not defined     no-undef
+  16:17  error  'setLoading' is not defined   no-undef
+  21:13  error  'setLoading' is not defined   no-undef
+  58:36  error  'password' is not defined     no-undef
+  59:46  error  'setPassword' is not defined  no-undef
+
+C:\Sitema de Manuten├º├úo\src\context\AuthContext.jsx
+  1:53  error  'useContext' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+Ô£û 10 problems (7 errors, 3 warnings)
+

@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import {
     signInWithEmailAndPassword,
@@ -18,7 +18,7 @@ import {
 
 const AuthContext = createContext();
 
-export const useAuth = () => useContext(AuthContext);
+export { AuthContext };
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -188,7 +188,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const userRef = doc(db, "users", id);
             // Remove senha dos dados (não atualizamos senha do Auth por aqui)
-            const { password, ...firestoreData } = data;
+            const { password: _password, ...firestoreData } = data;
             await updateDoc(userRef, firestoreData);
             return { success: true };
         } catch (error) {

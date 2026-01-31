@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { AuthProvider, useAuth } from './context/AuthContext';
+
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 import { loadCSV } from './lib/csv';
 import {
   buildProductMap,
-  buildMatrizMap,
   buildLojasMap,
   normalizeMovRows,
   normalizeDefectRows
@@ -13,12 +14,14 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Login from './components/Login';
 import UserManagement from './components/UserManagement';
+import LoadingState from './components/common/LoadingState';
 
-// ONLY LOGISTICS ENABLED (STABLE BUILD)
-import LogisticsDashboard from './components/LogisticsDashboard';
-import KPIDashboard from './components/KPIDashboard';
-import SistemaAnalise from './components/SistemaAnalise';
-import SistemaCompras from './components/SistemaCompras';
+// LAZY LOAD DASHBOARDS FOR PERFORMANCE
+const LogisticsDashboard = lazy(() => import('./components/LogisticsDashboard'));
+const KPIDashboard = lazy(() => import('./components/KPIDashboard'));
+const SistemaAnalise = lazy(() => import('./components/SistemaAnalise'));
+const SistemaCompras = lazy(() => import('./components/SistemaCompras'));
+
 import './App.css';
 
 // DUMMY COMPONENTS FOR BROKEN MODULES
@@ -117,7 +120,12 @@ function AppContent() {
     <div className="page" data-theme={theme}>
       <div className="appShell">
         <Sidebar currentScreen={currentScreen} onNavigate={setCurrentScreen} user={user} theme={theme} toggleTheme={toggleTheme} />
-        <main className="main"><Header title={currentScreen} />{renderScreen()}</main>
+        <main className="main">
+          <Header title={currentScreen} />
+          <Suspense fallback={<LoadingState message="Carregando componente..." />}>
+            {renderScreen()}
+          </Suspense>
+        </main>
       </div>
     </div>
   );

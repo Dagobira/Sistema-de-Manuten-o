@@ -1,6 +1,6 @@
 // src/lib/engine.js
 import { pickCol, toNumber, normalizeString, toString } from './csv';
-import { normalizeYearMonth, monthsCountInclusive, buildLabOptions as _buildLabOptions, buildMonthOptions as _buildMonthOptions } from './date';
+import { normalizeYearMonth, monthsCountInclusive } from './date';
 // Note: buildLabOptions e buildMonthOptions não estavam em date.js no plano original, 
 // mas o prompt pediu para usar helpers de date. 
 // PERA! O prompt pediu para adicionar JSDoc E usar helpers. 

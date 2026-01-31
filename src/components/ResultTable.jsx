@@ -1,236 +1,122 @@
-import React, { useMemo, useState } from "react";
-import { Virtuoso } from "react-virtuoso";
-// Importamos as bibliotecas de PDF
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// src/components/ResultTable.jsx
+import React from 'react';
+import { FixedSizeList as List } from 'react-window';
 
-export default function ResultTable({ rows }) {
-  const [sortConfig, setSortConfig] = useState({ key: 'Reposicao', direction: 'desc' });
 
-  // --- FUNÇÃO GERADORA DE PDF ---
-  const handleGeneratePDF = (tipo) => {
-    const doc = new jsPDF();
-    const isRepo = tipo === "reposicao";
-    const title = isRepo ? "PEDIDO DE REPOSIÇÃO (Enviar para Lab)" : "PEDIDO DE REMANEJAMENTO (Devolver para Matriz)";
-    const colorHead = isRepo ? [0, 122, 255] : [220, 38, 38]; // Azul ou Vermelho
+// Custom AutoSizer replacement using ResizeObserver
+const CustomAutoSizer = ({ children }) => {
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
+  const containerRef = React.useRef(null);
 
-    // 1. Filtrar os itens que tem quantidade
-    const items = rows.filter(r => {
-      const qtd = isRepo ? (r.Reposicao || 0) : (r.Remanejamento || 0);
-      return qtd > 0;
-    });
+  React.useEffect(() => {
+    if (!containerRef.current) return;
 
-    if (items.length === 0) {
-      alert("Não há itens para gerar neste pedido.");
-      return;
-    }
-
-    // 2. Cabeçalho do PDF
-    doc.setFontSize(18);
-    doc.setTextColor(40);
-    doc.text(title, 14, 22);
-
-    doc.setFontSize(10);
-    doc.text(`Data de Emissão: ${new Date().toLocaleDateString()} às ${new Date().toLocaleTimeString()}`, 14, 30);
-    doc.text(`Total de Itens: ${items.length}`, 14, 35);
-
-    // 3. Montar a Tabela
-    const tableColumn = ["Laboratório", "SKU", "Descrição", "Estoque Atual", "Qtd"];
-    const tableRows = items.map(item => [
-      item.Laboratorio,
-      item.SKU,
-      item.Descricao,
-      item.EstoqueLabAtual || 0, // Nova coluna
-      isRepo ? item.Reposicao : item.Remanejamento
-    ]);
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 40,
-      theme: 'grid',
-      headStyles: { fillColor: colorHead, textColor: 255, fontStyle: 'bold' },
-      styles: { fontSize: 10, cellPadding: 3 },
-      columnStyles: {
-        0: { cellWidth: 40 }, // Lab
-        1: { cellWidth: 25 }, // SKU
-        2: { cellWidth: 'auto' }, // Descricao
-        3: { cellWidth: 25, halign: 'center' }, // Estoque Atual
-        4: { cellWidth: 20, halign: 'center', fontStyle: 'bold' } // Qtd
+    const updateSize = () => {
+      if (containerRef.current) {
+        setSize({
+          width: containerRef.current.offsetWidth,
+          height: containerRef.current.offsetHeight
+        });
       }
-    });
+    };
 
-    // 4. Salvar arquivo
-    const fileName = isRepo ? "pedido_reposicao.pdf" : "pedido_remanejamento.pdf";
-    doc.save(fileName);
-  };
+    // Initial size
+    updateSize();
 
-  // --- CONFIGURAÇÃO DA TABELA VISUAL ---
-  const cols = useMemo(() => [
-    { id: "Laboratorio", label: "Laboratório", width: 140, align: "left" },
-    { id: "Categoria", label: "Categoria", width: 130, align: "left" },
-    { id: "SKU", label: "SKU", width: 80, align: "left" },
-    { id: "Descricao", label: "Descrição", width: 350, align: "left" },
+    // Watch for resize
+    const resizeObserver = new ResizeObserver(updateSize);
+    resizeObserver.observe(containerRef.current);
 
-    { id: "EstoqueGeralAtual", label: "Est. Matriz", width: 90, align: "center", bg: "var(--bg)" },
-    { id: "EstoqueLabAtual", label: "Est. Lab", width: 80, align: "center", bg: "var(--bg)" },
+    return () => resizeObserver.disconnect();
+  }, []);
 
-    { id: "Vendas", label: "Vendas", width: 70, align: "center" },
-    { id: "OutrasSaidas", label: "Outras Saídas", width: 90, align: "center" },
-    { id: "TotalConsumido", label: "Total Cons.", width: 80, align: "center", bold: true },
-
-    { id: "CoberturaMeses", label: "Cobertura", width: 80, align: "center" },
-
-    { id: "Reposicao", label: "Reposição", width: 80, align: "center", color: "var(--accent)", bold: true },
-    { id: "Remanejamento", label: "Remanejar", width: 80, align: "center", color: "#ef4444" },
-    { id: "SugestaoIA", label: "Sugestão IA", width: 150, align: "center", color: "#a855f7" },
-
-    { id: "Status", label: "Status", width: 110, align: "center" },
-  ], []);
-
-  const totalWidth = cols.reduce((acc, col) => acc + col.width, 0) + 40;
-
-  const sortedRows = useMemo(() => {
-    if (!rows) return [];
-    let sortableItems = [...rows];
-    if (sortConfig.key !== null) {
-      sortableItems.sort((a, b) => {
-        let valA = a[sortConfig.key];
-        let valB = b[sortConfig.key];
-        if (typeof valA === 'string') valA = valA.toLowerCase();
-        if (typeof valB === 'string') valB = valB.toLowerCase();
-        if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
-        if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
-        return 0;
-      });
-    }
-    return sortableItems;
-  }, [rows, sortConfig]);
-
-  const requestSort = (key) => {
-    let direction = 'asc';
-    if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
-    setSortConfig({ key, direction });
-  };
-
-  const TableHeader = () => (
-    <div
-      style={{
-        display: "flex",
-        width: `${totalWidth}px`,
-        background: "var(--table-header-bg)",
-        borderBottom: "1px solid var(--border)",
-        fontWeight: "600",
-        fontSize: "11px",
-        color: "var(--textSec)",
-        textTransform: "uppercase",
-        letterSpacing: "0.05em",
-        position: "sticky",
-        top: 0,
-        zIndex: 10
-      }}
-    >
-      {cols.map((col) => (
-        <div
-          key={col.id}
-          onClick={() => requestSort(col.id)}
-          style={{
-            width: col.width,
-            padding: "14px 10px",
-            textAlign: col.align || "left",
-            cursor: "pointer",
-            userSelect: "none",
-            display: "flex", alignItems: "center", gap: "4px",
-            justifyContent: col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start"
-          }}
-        >
-          {col.label} {sortConfig.key === col.id ? (sortConfig.direction === 'asc' ? '▲' : '▼') : ''}
-        </div>
-      ))}
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
+      {size.width > 0 && size.height > 0 && children(size)}
     </div>
   );
+};
 
-  const renderRow = (index) => {
-    const r = sortedRows[index];
-    const isEven = index % 2 === 0;
 
-    return (
-      <div
-        style={{
-          display: "flex",
-          width: `${totalWidth}px`,
-          alignItems: "center",
-          background: isEven ? "var(--panelSolid)" : "var(--bg)",
-          borderBottom: "1px solid var(--border2)",
-          minHeight: "48px",
-          fontSize: "12px",
-          color: "var(--text)",
-        }}
-      >
-        {cols.map((col) => (
-          <div
-            key={col.id}
-            style={{
-              width: col.width,
-              padding: "0 10px",
-              textAlign: col.align || "left",
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              fontWeight: col.bold ? "600" : "400",
-              color: col.color || "inherit",
-              height: "100%", display: "flex", alignItems: "center",
-              justifyContent: col.align === "center" ? "center" : col.align === "right" ? "flex-end" : "flex-start"
-            }}
-            title={r[col.id]}
-          >
-            {col.id === "Status" ? (
-              <span className={`status-badge status-${slug(r.Status)}`}>{r.Status}</span>
-            ) : (
-              formatCell(r[col.id])
-            )}
-          </div>
-        ))}
-      </div>
-    );
+const Row = ({ index, style, data }) => {
+  const item = data[index];
+  return (
+    <div style={{ ...style, display: 'flex', borderBottom: '1px solid #f0f0f0', alignItems: 'center', fontSize: '0.9rem' }}>
+      <div style={{ flex: 1, padding: '0 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.Laboratorio}</div>
+      <div style={{ flex: 1, padding: '0 10px' }}>{item.SKU}</div>
+      <div style={{ flex: 2, padding: '0 10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.Descricao}>{item.Descricao}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>{item.MediaMensalConsumo.toFixed(1)}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>{item.CoberturaMeses.toFixed(1)}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>{item.EstoqueAlvo}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>{item.EstoqueLabAtual}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center', fontWeight: 'bold', color: item.Reposicao > 0 ? '#2563eb' : '#ddd' }}>{item.Reposicao}</div>
+      <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center', fontWeight: 'bold', color: item.Remanejamento > 0 ? '#dc2626' : '#ddd' }}>{item.Remanejamento}</div>
+      <div style={{ flex: 1.5, padding: '0 10px', fontSize: '0.8rem' }}>{item.SugestaoIA}</div>
+    </div>
+  );
+};
+
+export default function ResultTable({ rows, onExport }) {
+  // Filtro visual rápido (opcional, pode ser adicionado)
+  // Por enquanto mostra tudo que o SistemaCompras calculou
+
+  // Headers para config do PDF (reaproveita os originais na exportação)
+  // Wrapper para exportação que adapta ao formato do pdfExport
+  const handleExportClick = (tipo) => {
+    if (onExport) onExport(tipo);
   };
 
   return (
-    <div className="card" style={{ height: "650px", display: "flex", flexDirection: "column", padding: 0, overflow: "hidden" }}>
-      <div className="rowBetween" style={{ padding: "16px 20px", borderBottom: "1px solid var(--border2)", background: "var(--panelSolid)", zIndex: 20 }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "600", color: "var(--text)" }}>Resultado Geral</h2>
-          <span className="subtitleSmall" style={{ marginTop: "4px", display: "block", color: "var(--textSec)" }}>Mostrando {sortedRows.length} linhas</span>
-        </div>
-        {/* NOVOS BOTÕES DE PDF */}
-        <div className="rowActions">
+    <div style={{ background: '#fff', borderRadius: '12px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', height: '600px', overflow: 'hidden' }}>
+      {/* TOOLBAR */}
+      <div style={{ padding: '15px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#1e293b' }}>Resultados da Análise ({rows.length})</h3>
+        <div style={{ display: 'flex', gap: '10px' }}>
           <button
-            onClick={() => handleGeneratePDF("reposicao")}
-            style={{ background: "var(--accent)", color: "#fff", border: "none" }}
+            onClick={() => handleExportClick('reposicao')}
+            style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
           >
-            📄 Pedido Reposição
+            📄 PDF Reposição
           </button>
           <button
-            onClick={() => handleGeneratePDF("remanejamento")}
-            style={{ background: "#ef4444", color: "#fff", border: "none" }}
+            onClick={() => handleExportClick('remanejamento')}
+            style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}
           >
-            📄 Pedido Remanejamento
+            🚚 PDF Remanejo
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, background: "var(--panelSolid)", overflow: "hidden" }}>
-        <Virtuoso
-          style={{ height: '100%', width: '100%' }}
-          totalCount={sortedRows.length}
-          components={{ Header: TableHeader }}
-          itemContent={renderRow}
-        />
+      {/* HEADER DA TABELA */}
+      <div style={{ display: 'flex', padding: '10px 0', background: '#f8fafc', fontWeight: '600', color: '#475569', fontSize: '0.85rem', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ flex: 1, padding: '0 10px' }}>Laboratório</div>
+        <div style={{ flex: 1, padding: '0 10px' }}>SKU</div>
+        <div style={{ flex: 2, padding: '0 10px' }}>Produto</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>Média/Mês</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>Cob. (Meses)</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>Alvo</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center' }}>Atual</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center', color: '#2563eb' }}>Comprar</div>
+        <div style={{ flex: 0.8, padding: '0 10px', textAlign: 'center', color: '#dc2626' }}>Mover</div>
+        <div style={{ flex: 1.5, padding: '0 10px' }}>Diagnóstico</div>
+      </div>
+
+      {/* TABELA VIRTUALIZADA */}
+      <div style={{ flex: 1 }}>
+        <CustomAutoSizer>
+          {({ height, width }) => (
+            <List
+              height={height}
+              width={width}
+              itemCount={rows.length}
+              itemSize={50}
+              itemData={rows}
+            >
+              {Row}
+            </List>
+          )}
+        </CustomAutoSizer>
       </div>
     </div>
   );
 }
-
-function formatCell(v) {
-  if (typeof v === "number") return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: Number.isInteger(v) ? 0 : 2 }).format(v);
-  return v ?? "-";
-}
-function slug(s) { return String(s || "").toLowerCase().replace(/\s+/g, "-").replace(/[^\w-]/g, ""); }

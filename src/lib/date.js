@@ -184,3 +184,11 @@ export function formatDateISO(date) {
   const year = date.getFullYear();
   return `${year}-${month}-${day}`;
 }
+
+export function buildMonthOptions() {
+  const months = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  return months.map((name, idx) => ({ value: idx + 1, label: name }));
+}

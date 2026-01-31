@@ -1,53 +1,48 @@
-import React from "react";
+// src/components/ParamsPanel.jsx
+import React from 'react';
 
-export default function ParamsPanel({ params, setParams }) {
-  const update = (patch) => setParams((prev) => ({ ...prev, ...patch }));
+// Painel de Parâmetros com validação de input
+
+export default function ParamsPanel({ params, update }) {
+
+  const handleNumberChange = (key, value, min, max) => {
+    const val = parseInt(value, 10);
+    if (!isNaN(val) && val >= min && val <= max) {
+      update({ [key]: val });
+    }
+  };
 
   return (
-    <div className="panelForm">
-      <div className="formGrid">
-        <label className="field">
-          <span className="fieldLabel">Cobertura alvo (meses)</span>
+    <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
+      <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#475569', textTransform: 'uppercase' }}>Parâmetros do Algoritmo</h4>
+
+      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+
+        <label style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          Cobertura Alvo (Meses):
           <input
             type="number"
-            min="1"
             value={params.coberturaAlvoMeses}
-            onChange={(e) => update({ coberturaAlvoMeses: Number(e.target.value) })}
+            onChange={e => handleNumberChange('coberturaAlvoMeses', e.target.value, 1, 12)}
+            style={{ width: '50px', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
           />
         </label>
 
-        <label className="field">
-          <span className="fieldLabel">Transferência mínima (unidades)</span>
+        <label style={{ fontSize: '0.85rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          Transferência Mínima:
           <input
             type="number"
-            min="0"
             value={params.transferenciaMinima}
-            onChange={(e) => update({ transferenciaMinima: Number(e.target.value) })}
+            onChange={e => handleNumberChange('transferenciaMinima', e.target.value, 1, 100)}
+            style={{ width: '50px', padding: '4px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
           />
         </label>
 
-        <label className="field">
-          <span className="fieldLabel">Regra sem movimento (meses) – 6m</span>
-          <input
-            type="number"
-            min="1"
-            value={params.regra6m}
-            onChange={(e) => update({ regra6m: Number(e.target.value) })}
-          />
-        </label>
+        <span style={{ fontSize: '0.85rem', color: '#94a3b8', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
+          Regras: Se sem venda em {params.regra6m}m (alvo=1) ou {params.regra12m}m (alvo=0).
+        </span>
 
-        <label className="field">
-          <span className="fieldLabel">Regra sem movimento (meses) – 12m</span>
-          <input
-            type="number"
-            min="1"
-            value={params.regra12m}
-            onChange={(e) => update({ regra12m: Number(e.target.value) })}
-          />
-        </label>
       </div>
-      
-      {/* Removi a nota explicativa para limpar o layout conforme solicitado */}
     </div>
   );
 }
